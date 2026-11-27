@@ -1658,7 +1658,7 @@ function cardRegistroDia(v){
 const CENTRO=[-24.7705,-65.3930]; // Barrio Tres Cerritos, Salta Capital (aprox.)
 const RESULTADOS=[["vacunado","Se vacunó","#1f7a3a"],["nadie","No había nadie","#6b7280"],["volver","Volver otro día","#c98a00"],["rechazo","No quiso vacunarse","#b42318"],["aldia","Ya estaba al día","#0d6b6e"],["mudo","Se mudó / no vive ahí","#8a5a2b"],["nodir","No se encontró la dirección","#475569"],["atendido","Se lo atendió / se hizo el seguimiento","#0b7a9e"],["derivado","Derivado al centro o al hospital","#a21caf"],["otro","Otro","#5b4bb5"]];
 const resInfo=k=>RESULTADOS.find(r=>r[0]===k)||RESULTADOS.find(r=>r[0]==="otro");
-const TIPOS_VIS=[["vacunacion","Vacunación","#1f7a3a"],["notificado","Caso notificado (enfermedad)","#b42318"],["riesgo","Familia en riesgo social","#7a3fb5"],["dengue","Sospechoso de dengue","#e0701a"]];
+const TIPOS_VIS=[["vacunacion","Visita domiciliaria / vacunación","#7CB342","VISITA DOMICILIARIA"],["dengue_pos","Dengue positivo","#A52714","DENGUE POSITIVOS"],["dengue","Caso sospechoso de dengue","#FFD600","CASO SOSPECHOSOS"],["foco","Foco de Aedes aegypti","#0288D1","FOCO DE AEDES AEGYPTI"],["notificado","Caso notificado (otra enfermedad)","#E65100","CASO NOTIFICADO"],["riesgo","Familia en riesgo social","#7a3fb5","RIESGO SOCIAL"]];
 const tipoInfo=k=>TIPOS_VIS.find(t=>t[0]===k)||TIPOS_VIS[0];
 let filtroTipo="todos";
 let MAPA=null, CAPA=null, filtroVis="30";
@@ -1666,6 +1666,7 @@ function mapaDisponible(){ return !!(window.L && navigator.onLine!==undefined); 
 function vVisitas(v){
   S.visitas=S.visitas||[];
   v.append(el("div",{class:"toolbar"},el("h2",{style:"flex:1"},"Visitas"),el("button",{class:"btn",onclick:()=>nuevaVisita(null)},"+ Nueva visita")));
+  v.append(el("div",{class:"toolbar"},el("label",{class:"btn ghost sm"},"⬆ Subir visitas (Excel o KML)",el("input",{type:"file",accept:".xlsx,.xls,.csv,.kml,application/vnd.google-earth.kml+xml",hidden:true,onchange:e=>{ const f=e.target.files[0]; e.target.value=""; if(f) leerArchivo(f); }})),el("button",{class:"btn ghost sm",onclick:()=>exportarMapa(S.visitas.filter(x=>!x.ejemplo))},"🗺 Mapas para Google My Maps")));
   v.append(barraRapida({visita:{adjuntar:f=>{ const x=nuevaVisita(null); setTimeout(()=>x&&x.adjuntar(f),50); }}}));
   const lista=S.visitas.filter(x=>(filtroVis==="todas"||(hoy-parseISO(x.fecha))/86400000<=+filtroVis)&&(filtroTipo==="todos"||(x.tipo||"vacunacion")===filtroTipo)).sort((a,b)=>(b.fecha+b.hora)<(a.fecha+a.hora)?-1:1);
   const porRes={}; lista.forEach(x=>porRes[x.resultado]=(porRes[x.resultado]||0)+1);
@@ -1696,27 +1697,60 @@ function vVisitas(v){
       el("span",{style:"flex:none;width:14px;height:14px;border-radius:50%;margin-top:4px;background:"+r[2]}),
       el("div",{class:"main"},el("div",{class:"name"},x.direccion||"Sin dirección"),el("div",{class:"small muted"},[fmt(x.fecha)+" "+(x.hora||""),tipoInfo(x.tipo)[1]+(x.detalle?" ("+x.detalle+")":""),r[1],x.personas,x.vacunador].filter(Boolean).join(" · ")),
         x.lat==null?el("div",{class:"chips"},el("span",{class:"chip warn"},"Sin ubicación")):null)); })));
-    v.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarMapa(lista)},"🗺 Para Google My Maps"),el("label",{class:"btn ghost sm"},"⬆ Subir visitas (Excel)",el("input",{type:"file",accept:".xlsx,.xls,.csv",hidden:true,onchange:e=>{ const f=e.target.files[0]; e.target.value=""; if(f) leerArchivo(f); }})),el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(lista.map(x=>({Tipo:tipoInfo(x.tipo)[1],Detalle:x.detalle,Fecha:fmt(x.fecha),Hora:x.hora,"Dirección":x.direccion,Resultado:resInfo(x.resultado)[1],Personas:x.personas,"Vacunas aplicadas":x.vacunas,"Vacunador/a":x.vacunador,Observaciones:x.obs,Latitud:x.lat,Longitud:x.lng,"Ver en mapa":x.lat!=null?"https://www.openstreetmap.org/?mlat="+x.lat+"&mlon="+x.lng+"#map=18/"+x.lat+"/"+x.lng:""})),"visitas_"+iso(hoy))},"Descargar visitas en Excel")));
+    v.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarMapa(lista)},"🗺 Para Google My Maps"),el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(lista.map(x=>({Tipo:tipoInfo(x.tipo)[1],Detalle:x.detalle,Fecha:fmt(x.fecha),Hora:x.hora,"Dirección":x.direccion,Resultado:resInfo(x.resultado)[1],Personas:x.personas,"Vacunas aplicadas":x.vacunas,"Vacunador/a":x.vacunador,Observaciones:x.obs,Latitud:x.lat,Longitud:x.lng,"Ver en mapa":x.lat!=null?"https://www.openstreetmap.org/?mlat="+x.lat+"&mlon="+x.lng+"#map=18/"+x.lat+"/"+x.lng:""})),"visitas_"+iso(hoy))},"Descargar visitas en Excel")));
   }
 }
 function kmlColor(h){ const m=/#?(..)(..)(..)/.exec(h); return "ff"+m[3]+m[2]+m[1]; }
 const escX=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
-function armarKML(lista,titulo){
-  const est=RESULTADOS.map(r=>'<Style id="r_'+r[0]+'"><IconStyle><color>'+kmlColor(r[2])+'</color><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle></Style>').join("");
-  const pm=lista.filter(x=>x.lat!=null).map(x=>{ const r=resInfo(x.resultado),t=tipoInfo(x.tipo);
-    return '<Placemark><name>'+escX(r[1])+'</name><styleUrl>#r_'+r[0]+'</styleUrl><description>'+escX([t[1]+(x.detalle?": "+x.detalle:""),fmt(x.fecha),x.direccion].filter(Boolean).join(" · "))+'</description><Point><coordinates>'+x.lng+','+x.lat+',0</coordinates></Point></Placemark>'; }).join("");
-  return '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>'+escX(titulo)+'</name>'+est+pm+'</Document></kml>';
+const dato=(k,v)=>'<Data name="'+k+'"><value>'+escX(v)+'</value></Data>';
+// Mismo esquema que el mapa «DENGUE 2024»: una capa por tipo, color por capa y los campos DNI, EDAD, TELEFONO, DOMICILIO, NOTIFICACION, OBSERVACION.
+function armarKML(lista,titulo,o={}){
+  const completa=!!o.completa;
+  const est=TIPOS_VIS.map(t=>'<Style id="t_'+t[0]+'"><IconStyle><color>'+kmlColor(t[1+1])+'</color><scale>1</scale><Icon><href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href></Icon></IconStyle></Style>').join("")+
+    '<Style id="area"><LineStyle><color>ff000000</color><width>3</width></LineStyle><PolyStyle><color>1a000000</color></PolyStyle></Style>';
+  const capas=[]; const area=S.ajustes.area; if(o.area&&area&&area.length>2) capas.push('<Folder><name>AREA DE RESPONSABILIDAD</name><Placemark><name>Área de responsabilidad</name><styleUrl>#area</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>'+area.map(c=>c[1]+","+c[0]+",0").join(" ")+'</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Folder>');
+  TIPOS_VIS.filter(t=>!o.solo||t[0]===o.solo).forEach(t=>{ const pm=lista.filter(x=>(x.tipo||"vacunacion")===t[0]&&x.lat!=null).map(x=>{ const r=resInfo(x.resultado);
+    const nombre=completa?(x.personas||x.direccion||r[1]):(r[1]+" · "+fmt(x.fecha));
+    const datos=[dato("DOMICILIO",x.direccion||""),dato("FECHA DE VISITA",fmt(x.fecha)),dato("RESULTADO",r[1]),dato("DETALLE",x.detalle||"")];
+    if(completa) datos.push(dato("DNI",x.dni||""),dato("EDAD",x.edad||""),dato("TELEFONO",x.telefono||""),dato("NOTIFICACION",x.notificacion?fmt(x.notificacion):""),dato("OBSERVACION",x.obs||""));
+    return '<Placemark><name>'+escX(nombre)+'</name><styleUrl>#t_'+t[0]+'</styleUrl><ExtendedData>'+datos.join("")+'</ExtendedData><Point><coordinates>'+x.lng+','+x.lat+',0</coordinates></Point></Placemark>'; });
+    if(pm.length||o.capasVacias||o.solo) capas.push('<Folder><name>'+escX(t[3])+'</name>'+pm.join("")+'</Folder>'); });
+  return '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>'+escX(titulo)+'</name>'+est+capas.join("")+'</Document></kml>';
 }
+function filasMapa(l,completa){ return l.map(x=>{ const r=completa?{Nombre:x.personas||x.direccion||"",Capa:tipoInfo(x.tipo)[3],DNI:x.dni||"",Edad:x.edad||"",Teléfono:x.telefono||"",Domicilio:x.direccion||"",Notificación:x.notificacion?fmt(x.notificacion):"",Observación:x.obs||""}:{Nombre:resInfo(x.resultado)[1]+" · "+fmt(x.fecha),Capa:tipoInfo(x.tipo)[3],Domicilio:x.direccion||""};
+  return Object.assign(r,{Estado:resInfo(x.resultado)[1],Fecha:fmt(x.fecha),Latitud:x.lat??"",Longitud:x.lng??""}); }); }
 function exportarMapa(lista){
-  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"},
-    el("p",{class:"muted"},"Armá un mapa en Google My Maps: «Crear un mapa nuevo» → «Importar» → elegí el archivo. Un mapa por tipo de visita (vacunación, enfermedades, dengue)."),
-    el("div",{class:"note"},"🔒 Privacidad: estos archivos NO llevan nombres ni DNI, solo tipo, fecha, estado y dirección. Igual, dejá el mapa en PRIVADO (no lo compartas por link público)."));
-  const opciones=[["Todas las visitas del filtro actual",lista,"visitas"],...TIPOS_VIS.map(t=>["Solo: "+t[1],(S.visitas||[]).filter(x=>(x.tipo||"vacunacion")===t[0]&&!x.ejemplo),"mapa_"+t[0]])];
-  opciones.forEach(([tit,l,base])=>{ c.append(el("div",{class:"card"},el("b",{},tit+" ("+l.length+")"),el("div",{class:"small muted"},l.filter(x=>x.lat!=null).length+" con ubicación"),
-    el("div",{class:"toolbar"},
-      el("button",{class:"btn sm",onclick:()=>guardarArchivo(base+"_"+iso(hoy)+".kml",armarKML(l,tit),"application/vnd.google-earth.kml+xml")},"KML (con colores)"),
-      el("button",{class:"btn ghost sm",onclick:()=>guardarArchivo(base+"_"+iso(hoy)+".csv",aCSVcoma(l.map(x=>({Nombre:resInfo(x.resultado)[1],Tipo:tipoInfo(x.tipo)[1],Detalle:x.detalle||"",Fecha:fmt(x.fecha),Estado:resInfo(x.resultado)[1],"Dirección":x.direccion||"",Latitud:x.lat??"",Longitud:x.lng??""}))))},"CSV (dirección / coordenadas)")))); });
-  abrirOverlay("Para Google My Maps",c);
+  let completa=false, conArea=true;
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const cuerpo=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const opciones=()=>[["Todas las visitas del filtro actual",lista,"visitas"],...TIPOS_VIS.map(t=>["Solo: "+t[1],(S.visitas||[]).filter(x=>(x.tipo||"vacunacion")===t[0]&&!x.ejemplo),"mapa_"+t[0]])];
+  function pintar(){ cuerpo.replaceChildren(
+    el("div",{class:completa?"note bad":"note"},completa?"🔒 Esta versión lleva nombre, DNI, edad, teléfono y domicilio. Usala SOLO en tu mapa de Google My Maps en PRIVADO. No la compartas por link ni por grupos de WhatsApp.":"🔒 Esta versión NO lleva nombres, DNI, edad ni teléfono: solo capa, fecha, estado y domicilio. Igual dejá el mapa en privado."),
+    S.ajustes.area?el("label",{class:"check"},el("input",{type:"checkbox",checked:conArea,onchange:e=>{ conArea=e.target.checked; }}),"Incluir la capa «Área de responsabilidad»"):el("p",{class:"small muted"},"Si importás tu mapa de My Maps (KML) en Visitas, la app guarda el área de responsabilidad y la puede incluir acá."),
+    el("button",{class:"btn",onclick:async()=>{ for(const t of TIPOS_VIS){ const l=(S.visitas||[]).filter(x=>(x.tipo||"vacunacion")===t[0]&&!x.ejemplo&&x.lat!=null); if(l.length) await descargarArchivo("MAPA_"+slug(t[3])+(completa?"_COMPLETO_":"_")+iso(hoy)+".kml",armarKML(l,t[3],{completa,solo:t[0],area:conArea}),"application/vnd.google-earth.kml+xml"); } toast("Listo: un archivo por cada tipo con datos"); }},"⬇ Bajar UN MAPA POR CADA TIPO (todos juntos)"),
+    ...opciones().map(([tit,l,base],ix)=>el("div",{class:"card"},el("b",{},tit+" ("+l.length+")"),el("div",{class:"small muted"},l.filter(x=>x.lat!=null).length+" con ubicación"+(l.some(x=>x.lat==null)?" · "+l.filter(x=>x.lat==null).length+" SIN ubicación (no salen en el mapa: tomales el GPS o ubicalas por dirección)":"")),
+      el("div",{class:"toolbar"},
+        el("button",{class:"btn sm",onclick:()=>guardarArchivo(base+(completa?"_COMPLETO_":"_")+iso(hoy)+".kml",armarKML(l,tit,ix===0?{completa,area:conArea,capasVacias:true}:{completa,area:conArea,solo:TIPOS_VIS[ix-1][0]}),"application/vnd.google-earth.kml+xml")},"KML (capas y colores)"),
+        el("button",{class:"btn ghost sm",onclick:()=>guardarArchivo(base+(completa?"_COMPLETO_":"_")+iso(hoy)+".csv",aCSVcoma(filasMapa(l,completa)))},"CSV (dirección / coordenadas)"))))); }
+  c.append(el("p",{class:"muted"},"En Google My Maps: «Crear un mapa nuevo» → «Importar» → elegí el archivo KML. Sale con el mismo esquema que tu mapa DENGUE 2024: una capa por tipo, con su color."),
+    el("div",{class:"toolbar"},el("button",{id:"mp-sin",class:"btn sm",onclick:()=>{ completa=false; pintar(); }},"Sin datos personales"),el("button",{id:"mp-comp",class:"btn ghost sm",onclick:()=>{ completa=true; pintar(); }},"Completa (para mi mapa privado)")),cuerpo);
+  pintar(); abrirOverlay("Para Google My Maps",c);
+}
+// Importar un KML de My Maps como visitas (capa → tipo; campos DNI, EDAD, TELEFONO, DOMICILIO, NOTIFICACION, OBSERVACION)
+function tipoDeCapa(n){ n=norm(n); if(/positiv/.test(n)) return "dengue_pos"; if(/sospech/.test(n)) return "dengue"; if(/foco|aedes/.test(n)) return "foco"; if(/riesgo|social/.test(n)) return "riesgo"; if(/visita|vacun/.test(n)) return "vacunacion"; return "notificado"; }
+function importarKML(texto,nombre){
+  const doc=new DOMParser().parseFromString(texto,"application/xml"); if(doc.querySelector("parsererror")){ toast("El archivo KML no se pudo leer"); return; }
+  S.visitas=S.visitas||[]; let n=0,dup=0,sin=0,area=false;
+  doc.querySelectorAll("Placemark").forEach(pm=>{
+    const cap=pm.closest("Folder"); const capa=cap?(cap.querySelector(":scope>name")||{}).textContent||"":""; const get=k=>{ const d=[...pm.querySelectorAll("Data")].find(x=>norm(x.getAttribute("name")||"")===norm(k)); return d?(d.textContent||"").trim():""; };
+    const poly=pm.querySelector("Polygon coordinates"); if(poly){ if(/area|responsab/.test(norm(capa))||true){ S.ajustes.area=poly.textContent.trim().split(/\s+/).map(c=>c.split(",")).filter(c=>c.length>=2).map(c=>[+c[1],+c[0]]); area=true; } return; }
+    const pt=pm.querySelector("Point coordinates"); if(!pt) return; const [lo,la]=pt.textContent.trim().split(",").map(parseFloat); if(isNaN(la)||isNaN(lo)){ sin++; return; }
+    const nom=((pm.querySelector(":scope>name")||{}).textContent||"").trim(); const tipo=tipoDeCapa(capa);
+    let nt=get("NOTIFICACION"); const fnot=fechaDesde(nt)||""; const dni=(get("N° DE DNI")||get("DNI")).replace(/\D/g,"");
+    const v={id:uid(),tipo,detalle:capa,fecha:fnot||iso(hoy),hora:"",lat:+la.toFixed(6),lng:+lo.toFixed(6),direccion:get("DOMICILIO"),resultado:"otro",personas:nom,vacunas:"",vacunador:"",obs:[get("OBSERVACION"),(!fnot&&nt)?"Notificación: "+nt:""].filter(Boolean).join(" · "),dni,edad:get("EDAD"),telefono:get("TELEFONO"),notificacion:fnot,importado:true};
+    if(S.visitas.some(x=>x.tipo===v.tipo&&x.lat===v.lat&&x.lng===v.lng&&(x.personas||"")===v.personas)){ dup++; return; }
+    S.visitas.push(v); n++; });
+  save(); render(); toast("KML: "+n+" puntos importados"+(dup?", "+dup+" ya estaban":"")+(area?", área de responsabilidad guardada":"")+(sin?", "+sin+" sin coordenadas":""));
 }
 function nuevaVisita(x, paciente){
   S.visitas=S.visitas||[];
@@ -1724,7 +1758,12 @@ function nuevaVisita(x, paciente){
   const vis=x?Object.assign({},x):{id:uid(),fecha:iso(ahora),hora:String(ahora.getHours()).padStart(2,"0")+":"+String(ahora.getMinutes()).padStart(2,"0"),lat:null,lng:null,precision:null,direccion:paciente?paciente.domicilio||"":"",resultado:"vacunado",personas:paciente?nombreCompleto(paciente):"",vacunas:"",vacunador:S.ajustes.vacunador||"",obs:""};
   const ubic=el("div",{class:"note full",id:"v-ubic"});
   const pintarUbic=(msg)=>{ ubic.replaceChildren(vis.lat!=null? el("span",{},"📍 Ubicación guardada ("+vis.lat.toFixed(5)+", "+vis.lng.toFixed(5)+(vis.precision?", ±"+Math.round(vis.precision)+" m":"")+")") : el("span",{},msg||"Sin ubicación todavía."),
-    el("div",{class:"toolbar",style:"margin-top:8px"},el("button",{class:"btn sm",type:"button",onclick:tomarGPS},vis.lat!=null?"Volver a tomar GPS":"Tomar ubicación GPS"))); };
+    el("div",{class:"toolbar",style:"margin-top:8px"},el("button",{class:"btn sm",type:"button",onclick:tomarGPS},vis.lat!=null?"Volver a tomar GPS":"📍 Usar mi ubicación (GPS)"),el("button",{class:"btn ghost sm",type:"button",onclick:ubicarPorDireccion},"🔎 Ubicar por la dirección"))); };
+  async function ubicarPorDireccion(){ const dir=(form.querySelector("#v-direccion").value||"").trim(); if(dir.length<5){ toast("Escribí primero la dirección (calle y número)"); return; }
+    pintarUbic("Buscando la dirección en OpenStreetMap (usa internet; solo se envía la dirección)…");
+    try{ const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ar&viewbox="+[CENTRO[1]-0.12,CENTRO[0]+0.12,CENTRO[1]+0.12,CENTRO[0]-0.12].join(",")+"&q="+encodeURIComponent(dir+", Salta, Argentina")); const j=await r.json();
+      if(j[0]){ vis.lat=+(+j[0].lat).toFixed(6); vis.lng=+(+j[0].lon).toFixed(6); vis.precision=null; pintarUbic("Encontrada. Revisá que sea el lugar correcto."); } else pintarUbic("No encontré esa dirección. Probá con otra forma o usá el GPS."); }
+    catch(e){ pintarUbic("No pude buscar la dirección (sin internet). Usá el GPS."); } }
   function tomarGPS(){
     if(!navigator.geolocation){ pintarUbic("Este celular o navegador no permite usar el GPS aquí."); return; }
     pintarUbic("Buscando señal GPS…");
@@ -1741,7 +1780,7 @@ function nuevaVisita(x, paciente){
   const pintarFotos=()=>{ fotos.replaceChildren(...(S.adjuntos||[]).filter(a=>a.visitaId===vis.id).map(a=>{ const b=el("button",{type:"button",class:"thumb",onclick:()=>verAdjunto(a)},"📷"); ADJ.get(a.id).then(d=>{ if(d&&a.tipo==="foto") b.replaceChildren(el("img",{src:d,alt:"Foto de la visita"})); }).catch(()=>{}); return b; })); };
   const adjuntar=async(file)=>{ const p=pacSel(); const a=await guardarAdjunto(file,p&&p.escuela||"","", "Visita "+fmt(vis.fecha)+(vis.direccion?" · "+vis.direccion:""),{visitaId:vis.id,pacienteId:p?p.id:undefined}); if(a){ pintarFotos(); toast("Foto guardada en la visita"); } };
   pintarFotos();
-  const leerForm=()=>{ ["fecha","hora","direccion","personas","vacunas","vacunador","obs","resultado","tipo","detalle"].forEach(k=>vis[k]=form.querySelector("#v-"+k).value.trim()); };
+  const leerForm=()=>{ ["fecha","hora","direccion","personas","vacunas","vacunador","obs","resultado","tipo","detalle","dni","edad","telefono","notificacion"].forEach(k=>vis[k]=form.querySelector("#v-"+k).value.trim()); };
   const guardarVis=()=>{ leerForm(); if(vis.vacunador) S.ajustes.vacunador=vis.vacunador; const pac=pacSel(); if(pac && vis.lat!=null){ pac.lat=vis.lat; pac.lng=vis.lng; if(vis.direccion&&!pac.domicilio) pac.domicilio=vis.direccion; }
     const i=S.visitas.findIndex(y=>y.id===vis.id); if(i>=0) S.visitas[i]=vis; else S.visitas.push(vis); save(); };
   const form=el("form",{class:"form card"},ubic,
@@ -1753,6 +1792,8 @@ function nuevaVisita(x, paciente){
     el("label",{class:"full"},"Resultado",el("select",{id:"v-resultado"},RESULTADOS.map(r=>el("option",{value:r[0],selected:vis.resultado===r[0]},r[1])))),
     f("personas","Personas visitadas",{placeholder:"Apellido y nombre"},true),
     f("vacunas","Vacunas aplicadas",{placeholder:"Ej.: Antigripal, dT"},true),
+    f("dni","DNI de la persona",{inputmode:"numeric",placeholder:"Opcional"}), f("edad","Edad",{placeholder:"Ej.: 34 años"}), f("telefono","Teléfono",{inputmode:"tel"}),
+    f("notificacion","Fecha de notificación",{type:"date",max:iso(hoy)}),
     f("vacunador","Vacunador/a"),
     el("label",{class:"full"},"Observaciones",el("textarea",{id:"v-obs",rows:2},vis.obs||"")),
     el("div",{class:"full"},el("div",{class:"small muted",style:"margin-bottom:6px"},"Fotos de la visita (autorización, carnet, domicilio):"),fotos,
@@ -1923,7 +1964,7 @@ function hojasCompletas(){
     V.push({"ID paciente":p.id,DNI:p.dni,Apellido:p.apellido,Nombre:p.nombre,"Fecha de nacimiento":fmt(p.nac).replace("—",""),Vacuna:r.vac,Dosis:r.dosis,"Vacuna (SISA)":nombreSisa(r,p,h.fecha),"Dosis (SISA)":dosisSisa(r),"Esquema (SISA)":condNueva(h.condicion),"Motivo (Acuario)":motivoAcuario(h.condicion),"Código":h.dosis,"Fecha de aplicación":fmt(h.fecha),Lote:h.lote||"","Vacunador/a":h.vacunador||"",Lugar:h.lugar||"",Establecimiento:h.establecimiento||"","Condición":h.condicion||"",ESAVI:h.esavi?"Sí":"","Pasado a NomiVac":h.pasado?"Sí":"",Observaciones:h.obs||"","ID registro":h.rid||""}); }));
   pac.forEach(p=>Object.entries(p.aplicadas||{}).forEach(([k,f])=>{ if((p.historial||[]).some(h=>h.dosis===k&&h.fecha===f)) return; const r=regla(k)||{vac:k,dosis:""};
     V.push({"ID paciente":p.id,DNI:p.dni,Apellido:p.apellido,Nombre:p.nombre,"Fecha de nacimiento":fmt(p.nac).replace("—",""),Vacuna:r.vac,Dosis:r.dosis,"Código":k,"Fecha de aplicación":fmt(f),Lote:"","Vacunador/a":"",Lugar:"",Establecimiento:"","Condición":"",ESAVI:"","Pasado a NomiVac":"",Observaciones:"Sin detalle (cargada solo con fecha)","ID registro":""}); }));
-  const Vi=(S.visitas||[]).filter(x=>!x.ejemplo).map(x=>({"ID visita":x.id,"Tipo de visita":tipoInfo(x.tipo)[1],"Código tipo":x.tipo||"vacunacion",Detalle:x.detalle||"",Fecha:fmt(x.fecha),Hora:x.hora||"","Dirección":x.direccion||"",Resultado:resInfo(x.resultado)[1],"Código resultado":x.resultado,Personas:x.personas||"","Vacunas aplicadas":x.vacunas||"","Vacunador/a":x.vacunador||"",Observaciones:x.obs||"",Latitud:x.lat??"",Longitud:x.lng??"","ID paciente":x.pacienteId||""}));
+  const Vi=(S.visitas||[]).filter(x=>!x.ejemplo).map(x=>({"ID visita":x.id,"Tipo de visita":tipoInfo(x.tipo)[1],"Código tipo":x.tipo||"vacunacion",Detalle:x.detalle||"",DNI:x.dni||"",Edad:x.edad||"",Teléfono:x.telefono||"","Fecha de notificación":x.notificacion||"",Fecha:fmt(x.fecha),Hora:x.hora||"","Dirección":x.direccion||"",Resultado:resInfo(x.resultado)[1],"Código resultado":x.resultado,Personas:x.personas||"","Vacunas aplicadas":x.vacunas||"","Vacunador/a":x.vacunador||"",Observaciones:x.obs||"",Latitud:x.lat??"",Longitud:x.lng??"","ID paciente":x.pacienteId||""}));
   const D=P.filter(x=>x.Docente==="Sí");
   const ap=aplicacionesTodas();
   return {Pacientes:P,Vacunas:V,Visitas:Vi,Docentes:D,"Formato SISA":ap.map(x=>filaSisa(x.p,x.h)),"Formato Acuario":ap.map(x=>filaAcuario(x.p,x.h))};
@@ -1963,7 +2004,7 @@ function importarLibroCompleto(hojas,nombreArchivo){
   S.visitas=S.visitas||[];
   (hojas.Visitas||[]).forEach(f=>{ const id=val(f,"ID visita"); if(id&&S.visitas.some(x=>x.id===id)) return; const fe=fechaDesde(f["Fecha"]); if(!fe) return;
     const la=parseFloat(val(f,"Latitud")), lo=parseFloat(val(f,"Longitud"));
-    S.visitas.push({id:id||uid(),tipo:(TIPOS_VIS.find(t=>t[0]===val(f,"Código tipo")||t[1]===val(f,"Tipo de visita")||t[1]===val(f,"Tipo"))||TIPOS_VIS[0])[0],detalle:val(f,"Detalle"),fecha:fe,hora:val(f,"Hora"),direccion:val(f,"Dirección"),resultado:val(f,"Código resultado")||(RESULTADOS.find(r=>r[1]===val(f,"Resultado")||r[0]===norm(val(f,"Resultado")))||["otro"])[0],personas:val(f,"Personas"),vacunas:val(f,"Vacunas aplicadas"),vacunador:val(f,"Vacunador/a"),obs:val(f,"Observaciones"),lat:isNaN(la)?null:la,lng:isNaN(lo)?null:lo,pacienteId:val(f,"ID paciente")||undefined}); res.vis++; });
+    S.visitas.push({id:id||uid(),tipo:(TIPOS_VIS.find(t=>t[0]===val(f,"Código tipo")||t[1]===val(f,"Tipo de visita")||t[1]===val(f,"Tipo"))||TIPOS_VIS[0])[0],detalle:val(f,"Detalle"),dni:val(f,"DNI"),edad:val(f,"Edad"),telefono:val(f,"Teléfono"),notificacion:fechaDesde(f["Fecha de notificación"])||"",fecha:fe,hora:val(f,"Hora"),direccion:val(f,"Dirección"),resultado:val(f,"Código resultado")||(RESULTADOS.find(r=>r[1]===val(f,"Resultado")||r[0]===norm(val(f,"Resultado")))||["otro"])[0],personas:val(f,"Personas"),vacunas:val(f,"Vacunas aplicadas"),vacunador:val(f,"Vacunador/a"),obs:val(f,"Observaciones"),lat:isNaN(la)?null:la,lng:isNaN(lo)?null:lo,pacienteId:val(f,"ID paciente")||undefined}); res.vis++; });
   save(); render();
   toast("Importado: "+res.nuevos+" pacientes nuevos, "+res.act+" actualizados, "+res.vac+" vacunas, "+res.vis+" visitas"+(res.omit?" ("+res.omit+" filas sin reconocer)":""));
   return res;
@@ -2350,6 +2391,7 @@ async function filasDePDF(file){
   return {filas};
 }
 function leerArchivo(file){
+  if(/\.kml$/i.test(file.name)){ file.text().then(t=>importarKML(t,file.name)); return; }
   if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){
     toast("Leyendo el PDF…");
     filasDePDF(file).then(r=>{ if(r.sinTexto){ toast("Este PDF es una foto o está escaneado: no tiene texto para leer. Subilo como foto en Escuelas y yo lo transcribo."); return; }
@@ -2560,7 +2602,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="2ba4e4d0b7";
+window.APP_VER="50764a3bb1";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
