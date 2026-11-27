@@ -147,6 +147,7 @@ nav.tabs button[aria-current="true"] svg{background:var(--accent-soft);border-ra
 .overlay .bar{box-shadow:0 2px 8px rgba(12,29,51,.08);border-bottom:0}
 .sugs{display:flex;flex-direction:column;margin-top:4px}
 .sugs .row{border-radius:10px;border:0;background:var(--gray-soft);margin-top:6px}
+.qa-ic{flex:none;width:44px;height:44px;border-radius:12px;color:#fff;font-size:1.5rem;font-weight:800;display:flex;align-items:center;justify-content:center}
 .fecha-ok{color:var(--ok);font-weight:700}
 @media (prefers-reduced-motion:no-preference){.row,.btn{transition:background .15s}}
 </style>
@@ -353,6 +354,12 @@ function vPendientes(v){
   const buscar=e=>{ e.preventDefault(); const q=dniIn.value.trim().toLowerCase(); if(!q) return; const d=q.replace(/\D/g,"");
     const hit=S.pacientes.filter(p=>(d&&p.dni===d)||(!d&&norm(p.apellido+" "+p.nombre).includes(norm(q))));
     if(hit.length===1) abrirPaciente(hit[0].id); else if(hit.length>1){ filtro=q; setTab("pacientes"); } else { editarPaciente(null,d?{dni:d}:{}); toast("No está cargado: completá sus datos"); } };
+  const nPasar=paraPasar().length;
+  const accion=(ic,col,tit,sub,fn)=>el("button",{class:"row",onclick:fn},el("span",{class:"qa-ic",style:"background:"+col},ic),el("div",{class:"main"},el("div",{class:"name"},tit),el("div",{class:"small muted"},sub)),el("span",{class:"muted",style:"font-size:1.3rem"},"›"));
+  v.append(el("div",{class:"list"},
+    accion("+","linear-gradient(135deg,var(--hdr1),var(--hdr2))","Registrar aplicación","Buscar por DNI → vacuna → confirmar",()=>flujoRegistro()),
+    accion("↻",nPasar?"#f29a1f":"#1fa356","Para pasar a NomiVac",nPasar?nPasar+" aplicaciones para cargar en el sistema oficial":"Todo cargado",abrirParaPasar),
+    accion("▤","#0e8f86","Catálogo de vacunas","Buscar vacunas, dosis y esquemas",abrirCatalogo)));
   v.append(el("form",{class:"card",onsubmit:buscar},el("h3",{},"Buscar o cargar paciente"),el("div",{class:"toolbar",style:"flex-wrap:nowrap"},dniIn,el("button",{class:"btn",type:"button",onclick:()=>editarPaciente(null),"aria-label":"Nuevo paciente"},"+ Nuevo")),sugs));
   v.append(el("div",{class:"chips"},el("span",{class:"chip ex"},"Hoy: "+dosisHoy+" dosis aplicadas"),el("span",{class:"chip ex"},visHoy+" visitas"),volver?el("button",{class:"chip warn",style:"border:0;cursor:pointer",onclick:()=>setTab("visitas")},volver+" domicilios para volver"):null));
   const reales=S.pacientes.filter(p=>!p.ejemplo).length; const dias=S.ultimaCopia?Math.floor((hoy-parseISO(S.ultimaCopia))/86400000):null;
@@ -497,7 +504,7 @@ function linkWhatsApp(p,r){
   let t=String(p.telefono).replace(/\D/g,""); if(t.startsWith("0")) t=t.slice(1); if(t.startsWith("54")) t=t.slice(2); if(t.startsWith("9")) t=t.slice(1);
   t=t.replace(/^(\d{3,4})15/,"$1"); // quita el 15 del celular
   const lista=[...r.atrasada,...r.pendiente].map(x=>x.vac+" ("+x.dosis+")").join(", ");
-  const msg="Hola, le escribimos del Vacunatorio del "+(S.ajustes.establecimiento||"Centro de Salud Tres Cerritos")+". "+(p.nombre||"")+" "+(p.apellido||"")+" tiene vacunas pendientes: "+lista+". Puede acercarse con el carnet y el DNI. ¡Gracias!";
+  const msg="Hola, le escribimos del Vacunatorio del "+(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos")+". "+(p.nombre||"")+" "+(p.apellido||"")+" tiene vacunas pendientes: "+lista+". Puede acercarse con el carnet y el DNI. ¡Gracias!";
   return "https://wa.me/549"+t+"?text="+encodeURIComponent(msg);
 }
 
@@ -625,7 +632,7 @@ async function carnetPDF(p){
   if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return; }
   const doc=new window.jspdf.jsPDF({unit:"mm",format:"a4"}); const W=210; let y=18;
   doc.setFillColor(13,107,110); doc.rect(0,0,W,12,"F"); doc.setTextColor(255); doc.setFontSize(11); doc.text("Constancia de vacunación",14,8);
-  doc.setFontSize(8); doc.text(S.ajustes.establecimiento||"Centro de Salud Tres Cerritos",W-14,8,{align:"right"});
+  doc.setFontSize(8); doc.text(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",W-14,8,{align:"right"});
   if(S.ajustes.logo){ try{ doc.addImage(S.ajustes.logo,"PNG",W-34,15,20,20); }catch(e){} }
   doc.setTextColor(20); doc.setFontSize(14); doc.text(((p.apellido||"").toUpperCase()+", "+(p.nombre||"")),14,y+4); y+=10;
   doc.setFontSize(9); doc.text([(p.tipodoc||"DNI")+": "+(p.dni||"—"),"Nacimiento: "+fmt(p.nac)+"   Edad: "+edadTexto(edadMeses(p.nac)),"Domicilio: "+(p.domicilio||"—")],14,y); y+=16;
@@ -673,6 +680,144 @@ function unirCopia(d){
   save(); return res;
 }
 
+
+/* ===================== FLUJO RÁPIDO: REGISTRAR APLICACIÓN ===================== */
+// Paso 1: buscar por DNI y sexo · Paso 2: datos de la vacuna · Paso 3: resumen para confirmar
+function flujoRegistro(pre){
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
+  const pasos=el("div",{class:"chips"},el("span",{class:"chip ex"},"1 · Paciente"),el("span",{class:"chip"},"2 · Vacuna"),el("span",{class:"chip"},"3 · Confirmar"));
+  const dni=el("input",{id:"fr-dni",inputmode:"numeric",placeholder:"Solo números",autocomplete:"off",value:pre&&pre.dni||"",oninput:e=>{e.target.value=e.target.value.replace(/\D/g,"");}});
+  const sexo=el("select",{id:"fr-sexo"},[["","Cualquiera"],["F","Femenino"],["M","Masculino"],["X","X / otro"]].map(([k,t])=>el("option",{value:k},t)));
+  const res=el("div");
+  const form=el("form",{class:"form card"},el("label",{},"Número de documento",dni),el("label",{},"Sexo",sexo),el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Buscar")));
+  form.addEventListener("submit",e=>{ e.preventDefault(); const d=dni.value; if(d.length<6){ toast("Escribí el DNI"); return; }
+    const hit=S.pacientes.filter(p=>p.dni===d&&(!sexo.value||!p.sexo||p.sexo===sexo.value));
+    if(!hit.length){ res.replaceChildren(el("div",{class:"card"},el("h3",{},"No está en tu padrón"),el("p",{class:"small muted"},"Cargalo con los datos mínimos y seguí con el registro."),
+      el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>altaYSeguir(d,sexo.value)},"Cargar paciente nuevo")))); return; }
+    const p=hit[0];
+    res.replaceChildren(el("div",{class:"card"},el("div",{class:"toolbar"},el("h3",{style:"flex:1"},"Paciente encontrado"),el("span",{class:"chip ok"},"✓")),
+      el("div",{class:"name",style:"font-size:1.1rem;font-weight:800"},nombreCompleto(p)),
+      el("div",{class:"small"},"DNI "+p.dni+(p.sexo?" · "+({F:"Femenino",M:"Masculino",X:"X"})[p.sexo]:"")+" · Nació el "+fmt(p.nac)+" ("+edadTexto(edadMeses(p.nac))+")"),
+      p.domicilio?el("div",{class:"small muted"},"Domicilio: "+p.domicilio):null,
+      (()=>{const r=resumen(p); return r.faltan?el("div",{class:"chips"},[...r.atrasada,...r.pendiente].slice(0,6).map(x=>el("span",{class:"chip "+(r.atrasada.includes(x)?"bad":"warn")},corto(x)))):el("span",{class:"chip ok"},"Al día con el calendario");})(),
+      el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>pasoVacuna(p)},"Continuar →"))));
+  });
+  c.append(pasos,form,res);
+  abrirOverlay("Registrar aplicación",c);
+  setTimeout(()=>{ dni.focus(); if(pre&&pre.dni) form.requestSubmit(); },60);
+}
+function altaYSeguir(dniV,sexoV){
+  // alta mínima y vuelve al flujo
+  const tmp={dni:dniV,sexo:sexoV};
+  editarPaciente(null,tmp);
+  const f=document.querySelector("#overlay form"); if(!f) return;
+  f.addEventListener("submit",()=>setTimeout(()=>{ const p=S.pacientes.find(x=>x.dni===dniV); if(p) pasoVacuna(p); },30));
+}
+function pasoVacuna(p, previo){
+  const r0=resumen(p); const sugerida=previo?CAL.find(x=>x.id===previo.dosis):([...r0.atrasada,...r0.pendiente][0]||null);
+  const vacSel=el("select",{id:"fr-vac",onchange:()=>{ llenarDosis(); llenarLote(); }},VACUNAS.map(v=>el("option",{value:v,selected:sugerida?sugerida.vac===v:false},v)));
+  const dosisSel=el("select",{id:"fr-dosis",onchange:()=>esq.textContent=grupoDe()});
+  const esq=el("div",{class:"small muted"});
+  const lote=el("input",{id:"fr-lote",list:"fr-lotes",autocapitalize:"characters",autocomplete:"off",value:previo?previo.lote:""});
+  const lotesDL=el("datalist",{id:"fr-lotes"}); const stockInfo=el("div",{class:"small muted"});
+  const fecha=el("input",{id:"fr-fecha",type:"date",max:iso(hoy),value:previo?previo.fecha:iso(hoy),onchange:llenarLote});
+  function grupoDe(){ const r=CAL.find(x=>x.id===dosisSel.value); return r?"Esquema: "+r.grupo:""; }
+  function llenarDosis(){ const rs=CAL.filter(x=>x.vac===vacSel.value);
+    const pref=rs.find(x=>previo&&x.id===previo.dosis)||rs.find(x=>["atrasada","pendiente"].includes(estadoDosis(p,x).e))||rs.find(x=>!(p.aplicadas||{})[x.id])||rs[0];
+    dosisSel.replaceChildren(...rs.map(x=>{ const e=estadoDosis(p,x).e; const tag=e==="ok"?" (ya aplicada)":e==="atrasada"?" · atrasada":e==="pendiente"?" · le toca":""; return el("option",{value:x.id,selected:x===pref},x.dosis+tag); }));
+    esq.textContent=grupoDe(); }
+  function llenarLote(){ const act=lotesActivos(vacSel.value,fecha.value); lotesDL.replaceChildren(...act.map(x=>el("option",{value:x.l.lote})));
+    if(!previo&&act.length&&!lote.dataset.tocado) lote.value=act[0].l.lote; if(!act.length&&!lote.dataset.tocado&&!previo) lote.value="";
+    stockInfo.textContent=act.length?"En stock: "+act.map(x=>x.l.lote+" ("+x.e.st+", vence "+fmt(x.l.vence)+")").join(" · "):""; }
+  lote.addEventListener("input",()=>lote.dataset.tocado="1");
+  const cond=el("select",{id:"fr-cond"},CONDICIONES.map(x=>el("option",{value:x,selected:previo?previo.condicion===x:(p.embarazada?x==="Embarazo / puerperio":x==="Calendario nacional")},x)));
+  const est=el("input",{id:"fr-est",value:previo?previo.establecimiento:(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos")});
+  const vacunador=el("input",{id:"fr-vacunador",value:previo?previo.vacunador:(S.ajustes.vacunador||"")});
+  const form=el("form",{class:"form card"},
+    el("div",{class:"full small"},el("b",{},nombreCompleto(p))," · DNI "+(p.dni||"—")+" · "+edadTexto(edadMeses(p.nac))),
+    el("label",{class:"full"},"Establecimiento",est),
+    el("label",{},"Fecha",fecha),
+    el("label",{},"Vacuna",vacSel),
+    el("label",{},"Condición",cond),
+    el("label",{},"Dosis",dosisSel,esq),
+    el("label",{},"Lote",lote,lotesDL,stockInfo),
+    el("label",{},"Vacunador/a",vacunador),
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Continuar →")));
+  llenarDosis(); llenarLote();
+  form.addEventListener("submit",e=>{ e.preventDefault();
+    const datos={dosis:dosisSel.value,fecha:fecha.value,lote:lote.value.trim().toUpperCase(),condicion:cond.value,establecimiento:est.value.trim(),vacunador:vacunador.value.trim()};
+    if(!datos.fecha){ toast("Poné la fecha"); return; }
+    if(!datos.lote&&!confirmarSinLote){ confirmarSinLote=true; toast("Falta el lote. Si no lo tenés, tocá Continuar otra vez."); return; }
+    pasoResumen(p,datos); });
+  let confirmarSinLote=false;
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"},el("div",{class:"chips"},el("span",{class:"chip ok"},"1 · Paciente ✓"),el("span",{class:"chip ex"},"2 · Vacuna"),el("span",{class:"chip"},"3 · Confirmar")),form);
+  abrirOverlay("Registrar aplicación",c);
+}
+function pasoResumen(p,d){
+  const rule=CAL.find(x=>x.id===d.dosis);
+  const avisos=[]; const t=avisoTemprano(p,rule,d.fecha); if(t) avisos.push(["bad",t]);
+  if(estadoDosis(p,rule).e==="ok"&&!rule.tipo) avisos.push(["warn","Esta dosis ya figura aplicada el "+fmt((p.aplicadas||{})[rule.id])+". Si confirmás, se reemplaza la fecha."]);
+  const pv=faltaPrevia(p,rule); if(pv) avisos.push(["warn","No figura aplicada la dosis anterior ("+pv+")."]);
+  const lt=(S.lotes||[]).find(l=>l.vacuna===rule.vac&&l.lote===d.lote); if(lt&&lt.vence&&lt.vence<d.fecha) avisos.push(["bad","El lote "+d.lote+" estaba vencido el "+fmt(d.fecha)+"."]);
+  if(d.lote&&(S.lotes||[]).length&&!lt) avisos.push(["warn","El lote "+d.lote+" no está en tu stock: no se va a descontar."]);
+  const fila=(k,v)=>el("div",{class:"small"},el("span",{class:"muted"},k+": "),el("b",{},v||"—"));
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"},
+    el("div",{class:"chips"},el("span",{class:"chip ok"},"1 · Paciente ✓"),el("span",{class:"chip ok"},"2 · Vacuna ✓"),el("span",{class:"chip ex"},"3 · Confirmar")),
+    el("p",{class:"muted"},"Revisá los datos antes de guardar."),
+    el("div",{class:"card"},el("h3",{},"Paciente"),el("div",{style:"font-weight:800"},nombreCompleto(p)),fila("DNI",p.dni),fila("Nacimiento",fmt(p.nac)+" ("+edadTexto(edadMeses(p.nac,parseISO(d.fecha)))+" a la fecha)")),
+    el("div",{class:"card"},el("h3",{},"Vacuna"),el("div",{style:"font-weight:800;font-size:1.1rem"},rule.vac),fila("Dosis",rule.dosis),fila("Esquema",rule.grupo),fila("Condición",d.condicion),fila("Lote",d.lote),fila("Fecha de aplicación",fmt(d.fecha)),fila("Establecimiento",d.establecimiento),fila("Vacunador/a",d.vacunador)),
+    ...avisos.map(([k,t])=>el("div",{class:"note",style:"background:var(--"+k+"-soft);color:var(--"+k+")"},t)),
+    el("div",{class:"toolbar"},
+      el("button",{class:"btn",onclick:()=>{
+        p.historial=p.historial||[];
+        if(!rule.tipo) p.historial=p.historial.filter(h=>h.dosis!==rule.id);
+        p.historial.push({rid:uid(),dosis:rule.id,fecha:d.fecha,lote:d.lote,vacunador:d.vacunador,lugar:S.ajustes.lugar||"Vacunatorio",establecimiento:d.establecimiento,condicion:d.condicion,obs:"",esavi:false});
+        recalcular(p,rule.id); S.ajustes.vacunador=d.vacunador; S.ajustes.establecimiento=d.establecimiento; save();
+        exito(p,rule);
+      }},"✓ Registrar aplicación"),
+      el("button",{class:"btn ghost",onclick:()=>pasoVacuna(p,d)},"← Corregir")));
+  abrirOverlay("Confirmar registro",c);
+}
+function exito(p,rule){
+  const c=el("div",{class:"card",style:"align-items:center;text-align:center;gap:12px;padding:28px 16px"},
+    el("div",{style:"width:64px;height:64px;border-radius:50%;background:var(--ok);color:#fff;font-size:2rem;display:flex;align-items:center;justify-content:center"},"✓"),
+    el("h2",{},"Aplicación registrada"),el("p",{},rule.vac+" · "+rule.dosis+" a "+nombreCompleto(p)),
+    el("p",{class:"small muted"},"Acordate de cargarla también en el sistema oficial. Queda en la lista «Para pasar a NomiVac»."),
+    el("div",{class:"toolbar",style:"justify-content:center"},el("button",{class:"btn",onclick:()=>pasoVacuna(p)},"Otra vacuna a este paciente"),el("button",{class:"btn ghost",onclick:()=>flujoRegistro()},"Otro paciente"),el("button",{class:"btn ghost",onclick:cerrarOverlay},"Terminar")));
+  abrirOverlay("Listo",c);
+}
+
+/* ===================== PARA PASAR A NOMIVAC ===================== */
+function paraPasar(){ const l=[]; S.pacientes.forEach(p=>(p.historial||[]).forEach(h=>{ if(!h.pasado&&!(h.obs||"").startsWith("Importado")) l.push({p,h,r:CAL.find(c=>c.id===h.dosis)}); })); return l.sort((a,b)=>a.h.fecha<b.h.fecha?-1:1); }
+function abrirParaPasar(){
+  const l=paraPasar();
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"},
+    el("p",{class:"muted"},"Aplicaciones registradas acá que todavía no marcaste como cargadas en el sistema oficial. Cuando la cargues allá, tocá «Ya la cargué»."));
+  if(!l.length) c.append(el("div",{class:"card"},el("p",{},"No hay nada pendiente. ¡Todo al día!")));
+  else {
+    c.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(l.map(x=>({Fecha:fmt(x.h.fecha),DNI:x.p.dni,Apellido:x.p.apellido,Nombre:x.p.nombre,Sexo:x.p.sexo,"Fecha nac.":fmt(x.p.nac),Vacuna:x.r?x.r.vac:x.h.dosis,Dosis:x.r?x.r.dosis:"",Esquema:x.r?x.r.grupo:"","Condición":x.h.condicion,Lote:x.h.lote,Establecimiento:x.h.establecimiento,"Vacunador/a":x.h.vacunador})),"para_cargar_"+iso(hoy))},"Descargar lista en Excel")));
+    c.append(el("div",{class:"list"},l.map(x=>el("div",{class:"row",style:"cursor:default"},
+      el("div",{class:"main"},el("div",{class:"name"},nombreCompleto(x.p)),el("div",{class:"small muted"},"DNI "+(x.p.dni||"—")+" · "+fmt(x.h.fecha)),
+        el("div",{class:"chips"},el("span",{class:"chip ex"},x.r?corto(x.r):x.h.dosis),x.h.lote?el("span",{class:"chip"},"Lote "+x.h.lote):null,x.h.condicion?el("span",{class:"chip"},x.h.condicion):null)),
+      el("button",{class:"btn sm",onclick:()=>{ x.h.pasado=iso(hoy); save(); abrirParaPasar(); toast("Marcada como cargada"); }},"Ya la cargué")))));
+  }
+  abrirOverlay("Para pasar a NomiVac ("+l.length+")",c);
+}
+
+/* ===================== CATÁLOGO DE VACUNAS ===================== */
+function abrirCatalogo(){
+  const q=el("input",{id:"cat-q",type:"search",placeholder:"Buscar vacuna",autocomplete:"off",oninput:pintar});
+  const lista=el("div",{style:"display:flex;flex-direction:column;gap:10px"});
+  function pintar(){ let t=norm(q.value).replace("gripe","gripal").replace("hpv","vph").replace("polio","ipv"); lista.replaceChildren();
+    VACUNAS.filter(v=>!t||norm(v).includes(t)).forEach(v=>{ const rs=CAL.filter(r=>r.vac===v);
+      lista.append(el("details",{class:"card"},el("summary",{},v+" · "+rs.length+(rs.length===1?" dosis":" dosis/esquemas")),
+        el("div",{class:"tbl-wrap"},el("table",{},el("tr",{},["Dosis","Esquema / edad","Tipo"].map(h=>el("th",{},h))),
+          rs.map(r=>el("tr",{},[r.dosis,r.grupo,r.tipo==="anual"?"Anual":r.tipo==="cada10"?"Cada 10 años":r.zona?"Según zona":r.cond?"Embarazo":"Calendario"].map(x=>el("td",{},x))))))));
+    }); }
+  pintar();
+  abrirOverlay("Catálogo de vacunas",el("div",{style:"display:flex;flex-direction:column;gap:14px"},q,el("p",{class:"small muted"},"Las vacunas y dosis que la app usa para calcular faltantes, según el Calendario Nacional. Condiciones para registrar: "+CONDICIONES.join(", ")+"."),lista));
+}
+
 /* ===================== REGISTRO DE APLICACIONES ===================== */
 const LUGARES=["Vacunatorio","Escuela","Visita domiciliaria","Campaña / operativo","Otro"];
 const CONDICIONES=["Calendario nacional","Embarazo / puerperio","Personal de salud","Personal estratégico","Grupo de riesgo","Campaña","Viajero","Otra"];
@@ -686,7 +831,7 @@ function registrarAplicacion(p,rule){
   const editando = !rule.tipo && (p.aplicadas||{})[rule.id];
   let r = editando ? ultimoRegistro(p,rule.id) : null;
   if(editando && !r){ r={rid:uid(),dosis:rule.id,fecha:p.aplicadas[rule.id],lote:"",vacunador:"",lugar:"",obs:"",esavi:false}; p.historial.push(r); }
-  const v=r||{fecha:iso(hoy),lote:"",vacunador:S.ajustes.vacunador||"",lugar:S.ajustes.lugar||"Vacunatorio",establecimiento:S.ajustes.establecimiento||"Centro de Salud Tres Cerritos",condicion:rule.cond==="embarazada"?"Embarazo / puerperio":"Calendario nacional",obs:"",esavi:false};
+  const v=r||{fecha:iso(hoy),lote:"",vacunador:S.ajustes.vacunador||"",lugar:S.ajustes.lugar||"Vacunatorio",establecimiento:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",condicion:rule.cond==="embarazada"?"Embarazo / puerperio":"Calendario nacional",obs:"",esavi:false};
   const previa=faltaPrevia(p,rule);
   const act=lotesActivos(rule.vac,v.fecha);
   const lotes=[...new Set([...act.map(x=>x.l.lote),...S.pacientes.flatMap(x=>(x.historial||[])).filter(h=>{const rr=CAL.find(c=>c.id===h.dosis); return rr&&rr.vac===rule.vac&&h.lote;}).map(h=>h.lote)])];
@@ -697,7 +842,7 @@ function registrarAplicacion(p,rule){
     el("div",{class:"full note",id:"a-temprano",hidden:true,style:"background:var(--bad-soft);color:var(--bad)"}),
     el("label",{},"Fecha de aplicación",el("input",{type:"date",id:"a-fecha",required:true,max:iso(hoy),value:v.fecha,oninput:e=>{form.querySelector("#a-edad").textContent="Edad a esa fecha: "+edadTexto(edadMeses(p.nac,parseISO(e.target.value)||hoy));}}),el("span",{id:"a-edad",class:"small"},"Edad a esa fecha: "+edadTexto(edadMeses(p.nac,parseISO(v.fecha)||hoy)))),
     el("label",{},"Condición / motivo",el("select",{id:"a-condicion"},CONDICIONES.map(c=>el("option",{value:c,selected:(v.condicion||"Calendario nacional")===c},c)))),
-    el("label",{class:"full"},"Establecimiento",el("input",{id:"a-establecimiento",value:v.establecimiento||S.ajustes.establecimiento||"Centro de Salud Tres Cerritos"})),
+    el("label",{class:"full"},"Establecimiento",el("input",{id:"a-establecimiento",value:v.establecimiento||S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos"})),
     el("label",{},"Lote",el("input",{id:"a-lote",value:v.lote,list:"lotes-list",autocapitalize:"characters"})),
     el("datalist",{id:"lotes-list"},lotes.map(l=>el("option",{value:l}))),
     act.length? el("div",{class:"full small muted"},"En stock: "+act.map(x=>x.l.lote+" ("+x.e.st+" dosis, vence "+fmt(x.l.vence)+")").join(" · ")) : ((S.lotes||[]).length? el("div",{class:"full small",style:"color:var(--warn)"},"No hay lotes de "+rule.vac+" con stock cargado."):null),
