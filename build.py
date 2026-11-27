@@ -4,7 +4,7 @@ VER=__import__('hashlib').sha1(src.encode()).hexdigest()[:10]
 head='''<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0d6b6e">
+<meta name="theme-color" content="#0a4fa8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -20,7 +20,7 @@ if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.s
 </body></html>
 '''
 open('index.html','w').write(head+src+tail)
-json.dump({"name":"Vacunatorio Tres Cerritos","short_name":"Vacunatorio","lang":"es-AR","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f3f6f5","theme_color":"#0d6b6e",
+json.dump({"name":"Vacunatorio Tres Cerritos","short_name":"Vacunatorio","lang":"es-AR","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f3f6f5","theme_color":"#0a4fa8",
  "id":"./","description":"Control de vacunas faltantes, registro de aplicaciones, escuelas y visitas domiciliarias.","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]},open('manifest.json','w'),ensure_ascii=False,indent=1)
 open('sw.js','w').write('''// Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
 const APP="vacunatorio-%s", TILES="mapa-tiles-v1", MAX_TILES=3000;

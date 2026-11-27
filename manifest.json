@@ -7,7 +7,7 @@
  "display": "standalone",
  "orientation": "portrait",
  "background_color": "#f3f6f5",
- "theme_color": "#0d6b6e",
+ "theme_color": "#0a4fa8",
  "id": "./",
  "description": "Control de vacunas faltantes, registro de aplicaciones, escuelas y visitas domiciliarias.",
  "icons": [

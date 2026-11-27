@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0d6b6e">
+<meta name="theme-color" content="#0a4fa8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -19,23 +19,26 @@
 <style>
 /* Layout: app de una columna para celular, encabezado fijo arriba y barra de pestañas abajo */
 :root{
-  --bg:#f3f6f5; --surface:#ffffff; --ink:#15302f; --muted:#5b706e; --line:#d6e0de;
-  --accent:#0d6b6e; --accent-ink:#ffffff; --accent-soft:#dcefee;
-  --bad:#b42318; --bad-soft:#fde7e4; --warn:#9a5b00; --warn-soft:#fdf0d5;
-  --ok:#1f7a3a; --ok-soft:#dff3e5; --gray-soft:#eceff0;
+  --bg:#eef3fa; --surface:#ffffff; --ink:#0c1d33; --muted:#4a5d75; --line:#d3deec;
+  --accent:#0b5fc4; --accent-ink:#ffffff; --accent-soft:#dbe9fd; --accent2:#00a19a;
+  --hdr1:#0a4fa8; --hdr2:#0096a8;
+  --bad:#d1241a; --bad-soft:#ffe3e0; --warn:#b86200; --warn-soft:#fff0d6;
+  --ok:#11873f; --ok-soft:#dcf5e5; --gray-soft:#edf1f7; --shadow:0 1px 2px rgba(12,29,51,.06),0 4px 14px rgba(12,29,51,.07);
   --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0e1716; --surface:#152221; --ink:#e3eeec; --muted:#9db1ae; --line:#2a3b39;
-  --accent:#4fc2c4; --accent-ink:#06201f; --accent-soft:#163b3b;
-  --bad:#ff8a7a; --bad-soft:#3d1c18; --warn:#f2bd5c; --warn-soft:#3a2c12;
-  --ok:#6fd38c; --ok-soft:#173222; --gray-soft:#1d2a29; color-scheme:dark}}
+  --bg:#0b1422; --surface:#132033; --ink:#e8f0fb; --muted:#a3b4ca; --line:#24354d;
+  --accent:#5aa2ff; --accent-ink:#04152b; --accent-soft:#16305a; --accent2:#38d1c6;
+  --hdr1:#0a3f86; --hdr2:#006f7c;
+  --bad:#ff7d70; --bad-soft:#3d1916; --warn:#ffbe55; --warn-soft:#3a2a10;
+  --ok:#5fdc8c; --ok-soft:#12321f; --gray-soft:#1a2a40; --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0e1716; --surface:#152221; --ink:#e3eeec; --muted:#9db1ae; --line:#2a3b39;
-  --accent:#4fc2c4; --accent-ink:#06201f; --accent-soft:#163b3b;
-  --bad:#ff8a7a; --bad-soft:#3d1c18; --warn:#f2bd5c; --warn-soft:#3a2c12;
-  --ok:#6fd38c; --ok-soft:#173222; --gray-soft:#1d2a29; color-scheme:dark}
+  --bg:#0b1422; --surface:#132033; --ink:#e8f0fb; --muted:#a3b4ca; --line:#24354d;
+  --accent:#5aa2ff; --accent-ink:#04152b; --accent-soft:#16305a; --accent2:#38d1c6;
+  --hdr1:#0a3f86; --hdr2:#006f7c;
+  --bad:#ff7d70; --bad-soft:#3d1916; --warn:#ffbe55; --warn-soft:#3a2a10;
+  --ok:#5fdc8c; --ok-soft:#12321f; --gray-soft:#1a2a40; --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
@@ -104,13 +107,55 @@ details summary{cursor:pointer;font-weight:700}
 .bar-cob{height:8px;border-radius:99px;background:var(--bad-soft);overflow:hidden}.bar-cob>span{display:block;height:100%;background:var(--ok)}
 .mapa-off{padding:24px;color:var(--muted);text-align:center}
 .leaflet-popup-content{color:#15302f}
+
+/* ===== Diseño v2: más color y contraste ===== */
+body{font-size:16.5px}
+body::before{background:var(--hdr1)}
+header{background:linear-gradient(120deg,var(--hdr1),var(--hdr2));color:#fff;box-shadow:0 2px 10px rgba(10,79,168,.25);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header .htxt{flex:1;min-width:0}
+header h1{font-size:1.3rem}
+header p{opacity:.92}
+#logo-hdr{width:44px;height:44px;border-radius:12px;background:#fff;object-fit:contain;padding:3px;flex:none}
+.logo-ph{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex:none;border:2px dashed rgba(255,255,255,.55)}
+.logo-ph svg{width:24px;height:24px}
+h2{font-size:1.4rem;font-weight:800}
+.card{border:0;box-shadow:var(--shadow);border-radius:16px;padding:16px}
+.list{border:0;box-shadow:var(--shadow);border-radius:16px}
+.row{padding:14px 16px}
+.row .name{font-size:1.02rem}
+.stat{border:0;border-radius:16px;padding:12px 14px;box-shadow:var(--shadow);color:#fff}
+.stat span{color:rgba(255,255,255,.92);font-weight:700}
+.stat b{color:#fff!important;font-size:2rem}
+.stat.bad{background:linear-gradient(135deg,#e0362c,#b81d14)} .stat.warn{background:linear-gradient(135deg,#f29a1f,#d46f00)} .stat.ok{background:linear-gradient(135deg,#1fa356,#0e7a37)}
+.stat:not(.bad):not(.warn):not(.ok){background:linear-gradient(135deg,var(--hdr1),var(--hdr2))}
+.btn{white-space:nowrap;min-height:46px;border-radius:12px;padding:10px 16px;box-shadow:0 2px 6px rgba(11,95,196,.25);display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+.btn.ghost{box-shadow:none;border-width:2px;background:var(--surface)}
+.btn.danger{box-shadow:none;border-width:2px}
+.btn.sm{min-height:38px;padding:6px 12px}
+.btn:active{transform:translateY(1px)}
+input,select,textarea{border:2px solid var(--line);border-radius:12px;min-height:48px;font-size:1rem}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.form label{font-weight:700;color:var(--ink);font-size:.88rem}
+.chip{font-weight:700;padding:3px 10px;font-size:.78rem}
+.badge{border-radius:10px;min-width:38px;padding:6px 8px;font-size:1rem}
+.badge.bad{background:var(--bad);color:#fff} .badge.warn{background:#f29a1f;color:#fff} .badge.ok{background:var(--ok);color:#fff}
+nav.tabs{box-shadow:0 -2px 12px rgba(12,29,51,.08);border-top:0}
+nav.tabs button{font-weight:700}
+nav.tabs button[aria-current="true"] svg{background:var(--accent-soft);border-radius:999px;padding:3px 14px;width:52px;box-sizing:content-box;margin:-3px 0}
+.group-h{background:var(--accent-soft);color:var(--accent)}
+.note{border-radius:14px;font-weight:700}
+.overlay .bar{box-shadow:0 2px 8px rgba(12,29,51,.08);border-bottom:0}
+.sugs{display:flex;flex-direction:column;margin-top:4px}
+.sugs .row{border-radius:10px;border:0;background:var(--gray-soft);margin-top:6px}
+.fecha-ok{color:var(--ok);font-weight:700}
 @media (prefers-reduced-motion:no-preference){.row,.btn{transition:background .15s}}
 </style>
 
 <header>
-  <h1>Vacunatorio Tres Cerritos</h1>
-  <p id="sub">Control de vacunas faltantes · Calendario Nacional</p>
-  <button id="btn-instalar" class="btn sm" hidden style="margin-top:8px;background:var(--accent-ink);color:var(--accent);border-color:var(--accent-ink)">Instalar la app en este celular</button>
+  <span id="logo-box" class="logo-ph" title="Logo del centro de salud"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></span>
+  <div class="htxt"><h1>Vacunatorio Tres Cerritos</h1>
+  <p id="sub">Control de vacunas faltantes · Calendario Nacional</p></div>
+  <button id="btn-instalar" class="btn sm" hidden style="flex-basis:100%;background:#fff;color:#0a4fa8;border-color:#fff">Instalar la app en este celular</button>
 </header>
 
 <main id="view"></main>
@@ -215,6 +260,7 @@ function fechaDesde(v){
   if(v instanceof Date && !isNaN(v)) return iso(v);
   if(typeof v==="number"){ const d=new Date(Math.round((v-25569)*86400000)); return iso(new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())); }
   const s=String(v).trim();
+  if(/^\d{8}$/.test(s)) return iso(new Date(+s.slice(4),+s.slice(2,4)-1,+s.slice(0,2)));
   let m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(s);
   if(m){ let y=+m[3]; if(y<100) y+= (y>(hoy.getFullYear()%100)?1900:2000); return iso(new Date(y,+m[2]-1,+m[1])); }
   m=/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/.exec(s);
@@ -297,11 +343,17 @@ function vPendientes(v){
   const hoyISO=iso(hoy); let dosisHoy=0; S.pacientes.forEach(p=>(p.historial||[]).forEach(h=>{ if(h.fecha===hoyISO) dosisHoy++; }));
   const visHoy=(S.visitas||[]).filter(x=>x.fecha===hoyISO).length;
   const volver=(S.visitas||[]).filter(x=>x.resultado==="volver").length;
-  const dniIn=el("input",{id:"buscar-dni",type:"search",inputmode:"numeric",placeholder:"Buscar por DNI o apellido",autocomplete:"off"});
+  const sugs=el("div",{class:"sugs"});
+  const dniIn=el("input",{id:"buscar-dni",type:"search",placeholder:"DNI, apellido o nombre",autocomplete:"off",oninput:()=>{
+    const q=norm(dniIn.value); sugs.replaceChildren(); if(q.length<2) return; const d=q.replace(/\D/g,"");
+    const hit=S.pacientes.filter(p=>d?String(p.dni||"").startsWith(d):norm(p.apellido+" "+p.nombre+" "+p.nombre+" "+p.apellido).includes(q)).slice(0,6);
+    hit.forEach(p=>sugs.append(filaPaciente(p)));
+    if(!hit.length) sugs.append(el("button",{class:"row",type:"button",onclick:()=>editarPaciente(null,d?{dni:d}:{})},el("div",{class:"main"},el("div",{class:"name"},"No está cargado"),el("div",{class:"small muted"},"Tocá para cargarlo"+(d?" con DNI "+d:"")))));
+  }});
   const buscar=e=>{ e.preventDefault(); const q=dniIn.value.trim().toLowerCase(); if(!q) return; const d=q.replace(/\D/g,"");
-    const hit=S.pacientes.filter(p=>(d&&p.dni===d)||(!d&&(p.apellido+" "+p.nombre).toLowerCase().includes(q)));
-    if(hit.length===1) abrirPaciente(hit[0].id); else if(hit.length>1){ filtro=q; setTab("pacientes"); } else { const n={id:null}; editarPaciente(null); setTimeout(()=>{ const x=document.querySelector("#p-dni"); if(x&&d) x.value=d; },0); toast("No está cargado: completá sus datos"); } };
-  v.append(el("form",{class:"card",onsubmit:buscar},el("h3",{},"Buscar paciente"),el("div",{class:"toolbar",style:"flex-wrap:nowrap"},dniIn,el("button",{class:"btn",type:"submit"},"Buscar"))));
+    const hit=S.pacientes.filter(p=>(d&&p.dni===d)||(!d&&norm(p.apellido+" "+p.nombre).includes(norm(q))));
+    if(hit.length===1) abrirPaciente(hit[0].id); else if(hit.length>1){ filtro=q; setTab("pacientes"); } else { editarPaciente(null,d?{dni:d}:{}); toast("No está cargado: completá sus datos"); } };
+  v.append(el("form",{class:"card",onsubmit:buscar},el("h3",{},"Buscar o cargar paciente"),el("div",{class:"toolbar",style:"flex-wrap:nowrap"},dniIn,el("button",{class:"btn",type:"button",onclick:()=>editarPaciente(null),"aria-label":"Nuevo paciente"},"+ Nuevo")),sugs));
   v.append(el("div",{class:"chips"},el("span",{class:"chip ex"},"Hoy: "+dosisHoy+" dosis aplicadas"),el("span",{class:"chip ex"},visHoy+" visitas"),volver?el("button",{class:"chip warn",style:"border:0;cursor:pointer",onclick:()=>setTab("visitas")},volver+" domicilios para volver"):null));
   const reales=S.pacientes.filter(p=>!p.ejemplo).length; const dias=S.ultimaCopia?Math.floor((hoy-parseISO(S.ultimaCopia))/86400000):null;
   if(reales && (dias==null||dias>=7)) v.append(el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},(dias==null?"Todavía no hiciste ninguna copia de seguridad. ":"Tu última copia de seguridad es de hace "+dias+" días. "),el("button",{class:"btn sm",onclick:()=>setTab("datos")},"Hacer copia ahora")));
@@ -397,31 +449,48 @@ function confirmarBorrar(p){
     el("div",{class:"toolbar"},el("button",{class:"btn danger",onclick:()=>{S.pacientes=S.pacientes.filter(x=>x.id!==p.id); save(); cerrarOverlay(); toast("Paciente borrado");}},"Sí, borrar"),el("button",{class:"btn ghost",onclick:()=>abrirPaciente(p.id)},"Cancelar")));
   abrirOverlay("Borrar paciente",c);
 }
-function editarPaciente(id){
-  const p = id? S.pacientes.find(x=>x.id===id) : {id:uid(),apellido:"",nombre:"",dni:"",nac:"",sexo:"",domicilio:"",telefono:"",escuela:"",curso:"",embarazada:false,aplicadas:{}};
+function fechaTexto(inp){ // escribe 15032019 y queda 15/03/2019
+  const d=inp.value.replace(/\D/g,"").slice(0,8); let t=d; if(d.length>4) t=d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4); else if(d.length>2) t=d.slice(0,2)+"/"+d.slice(2); inp.value=t; }
+function editarPaciente(id, base){
+  const p = id? S.pacientes.find(x=>x.id===id) : Object.assign({id:uid(),apellido:"",nombre:"",dni:"",nac:"",sexo:"",domicilio:"",telefono:"",escuela:"",curso:"",embarazada:false,aplicadas:{}},base||{});
   const campo=(k,t,attrs={},full)=>el("label",{class:full?"full":""},t,el("input",Object.assign({id:"p-"+k,value:p[k]||""},attrs)));
-  const form=el("form",{class:"form card"},
-    campo("apellido","Apellido",{required:true,autocapitalize:"characters"}),
-    campo("nombre","Nombre",{required:true}),
+  const edadInfo=el("span",{class:"small muted",id:"p-edad"});
+  const fechaIn=el("input",{id:"p-nac",inputmode:"numeric",placeholder:"dd/mm/aaaa",autocomplete:"off",value:p.nac?fmt(p.nac):"",required:true,
+    oninput:e=>{ fechaTexto(e.target); const f=fechaDesde(e.target.value); edadInfo.textContent= (e.target.value.length===10&&f&&f<=iso(hoy))? "Edad: "+edadTexto(edadMeses(f)) : ""; edadInfo.className=edadInfo.textContent?"small fecha-ok":"small muted"; }});
+  const dniIn=el("input",{id:"p-dni",inputmode:"numeric",value:p.dni||"",placeholder:"Solo números",autocomplete:"off",oninput:e=>{ e.target.value=e.target.value.replace(/\D/g,""); const ex=!id&&e.target.value.length>=7&&S.pacientes.find(x=>x.dni===e.target.value); aviso.hidden=!ex; if(ex){ aviso.replaceChildren("Ya está cargado: "+nombreCompleto(ex)+". ",el("button",{class:"btn sm",type:"button",onclick:()=>abrirPaciente(ex.id)},"Abrir ficha")); } }});
+  const aviso=el("div",{class:"full note",hidden:true});
+  const mas=el("details",{class:"full",open:!!id},el("summary",{},"Más datos (opcional)"),el("div",{class:"form",style:"margin-top:10px"},
     el("label",{},"Tipo de documento",el("select",{id:"p-tipodoc"},["DNI","Pasaporte","Cédula extranjera","Sin documento"].map(t=>el("option",{value:t,selected:(p.tipodoc||"DNI")===t},t)))),
-    campo("dni","Número de documento",{inputmode:"numeric"}),
-    campo("nac","Fecha de nacimiento",{type:"date",required:true,max:iso(hoy)}),
     el("label",{},"Sexo",el("select",{id:"p-sexo"},...[["","—"],["F","Femenino"],["M","Masculino"],["X","X / otro"]].map(([k,t])=>el("option",{value:k,selected:p.sexo===k},t)))),
     campo("telefono","Teléfono",{inputmode:"tel"}),
-    campo("domicilio","Domicilio",{},true),
-    campo("escuela","Escuela (si va a una)",{list:"escuelas-list"}),
+    campo("domicilio","Domicilio",{}),
+    campo("escuela","Escuela",{list:"escuelas-list"}),
     campo("curso","Curso / grado",{placeholder:"Ej.: 1° grado A"}),
     el("label",{class:"check full"},el("input",{type:"checkbox",id:"p-embarazada",checked:!!p.embarazada}),"Embarazada"),
-    el("datalist",{id:"escuelas-list"},[...new Set(S.pacientes.map(x=>x.escuela).filter(Boolean))].map(e=>el("option",{value:e}))),
-    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Guardar")));
+    el("datalist",{id:"escuelas-list"},[...new Set(S.pacientes.map(x=>x.escuela).filter(Boolean))].map(e=>el("option",{value:e})))));
+  let otro=false;
+  const form=el("form",{class:"form card"},
+    el("label",{},"DNI",dniIn), aviso,
+    campo("apellido","Apellido",{required:true,autocapitalize:"characters",autocomplete:"off"}),
+    campo("nombre","Nombre",{required:true,autocapitalize:"words",autocomplete:"off"}),
+    el("label",{},"Fecha de nacimiento",fechaIn,edadInfo),
+    mas,
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit",onclick:()=>{otro=false;}},"Guardar"),
+      !id?el("button",{class:"btn ghost",type:"submit",onclick:()=>{otro=true;}},"Guardar y cargar otro"):null));
   form.addEventListener("submit",e=>{
     e.preventDefault();
-    ["apellido","nombre","tipodoc","dni","nac","sexo","telefono","domicilio","escuela","curso"].forEach(k=>p[k]=form.querySelector("#p-"+k).value.trim());
+    const nac=fechaDesde(fechaIn.value); if(!nac||nac>iso(hoy)){ toast("Revisá la fecha de nacimiento (dd/mm/aaaa)"); fechaIn.focus(); return; }
+    ["apellido","nombre","tipodoc","dni","sexo","telefono","domicilio","escuela","curso"].forEach(k=>p[k]=form.querySelector("#p-"+k).value.trim());
+    p.apellido=p.apellido.toUpperCase(); p.nac=nac;
     p.embarazada=form.querySelector("#p-embarazada").checked;
     if(!id){ const dup=p.dni&&S.pacientes.find(x=>x.dni===p.dni); if(dup){ toast("Ya hay un paciente con ese DNI"); return; } S.pacientes.push(p); }
-    save(); toast("Guardado"); abrirPaciente(p.id);
+    save();
+    if(otro){ toast("Guardado: "+nombreCompleto(p)); editarPaciente(null,{escuela:p.escuela,curso:p.curso,domicilio:""}); return; }
+    toast("Guardado"); abrirPaciente(p.id);
   });
   abrirOverlay(id?"Editar paciente":"Nuevo paciente",form);
+  if(!id) setTimeout(()=>dniIn.focus(),60);
+  if(p.nac) fechaIn.dispatchEvent(new Event("input"));
 }
 
 function linkWhatsApp(p,r){
@@ -557,6 +626,7 @@ async function carnetPDF(p){
   const doc=new window.jspdf.jsPDF({unit:"mm",format:"a4"}); const W=210; let y=18;
   doc.setFillColor(13,107,110); doc.rect(0,0,W,12,"F"); doc.setTextColor(255); doc.setFontSize(11); doc.text("Constancia de vacunación",14,8);
   doc.setFontSize(8); doc.text(S.ajustes.establecimiento||"Centro de Salud Tres Cerritos",W-14,8,{align:"right"});
+  if(S.ajustes.logo){ try{ doc.addImage(S.ajustes.logo,"PNG",W-34,15,20,20); }catch(e){} }
   doc.setTextColor(20); doc.setFontSize(14); doc.text(((p.apellido||"").toUpperCase()+", "+(p.nombre||"")),14,y+4); y+=10;
   doc.setFontSize(9); doc.text([(p.tipodoc||"DNI")+": "+(p.dni||"—"),"Nacimiento: "+fmt(p.nac)+"   Edad: "+edadTexto(edadMeses(p.nac)),"Domicilio: "+(p.domicilio||"—")],14,y); y+=16;
   const cols=[14,40,100,140,170]; const head=["Fecha","Vacuna","Dosis","Lote","Vacunador/a"];
@@ -748,10 +818,55 @@ function nuevaVisita(x, paciente){
 }
 
 /* ===================== PESTAÑA: ESCUELAS ===================== */
+function parsearLinea(l){
+  let t=l.replace(/^\s*\d{1,3}[\).\-]\s+/,"").trim(); if(!t) return null; // quita "1) " o "1. "
+  let nac="", dni="";
+  const fm=/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/.exec(t); if(fm){ nac=fechaDesde(fm[0]); t=t.replace(fm[0]," "); }
+  const dm=/\b(\d{1,2}\.?\d{3}\.?\d{3})\b/.exec(t); if(dm){ dni=dm[1].replace(/\D/g,""); t=t.replace(dm[0]," "); }
+  t=t.replace(/\s+/g," ").replace(/^[,;\-\s]+|[,;\-\s]+$/g,"").trim(); if(!t) return null;
+  let ap="", no="";
+  if(t.includes(",")){ [ap,no]=t.split(",").map(x=>x.trim()); }
+  else { const w=t.split(" "); const mayus=w.filter(x=>x.length>1&&x===x.toUpperCase()&&/[A-ZÁÉÍÓÚÑ]/.test(x));
+    if(mayus.length&&mayus.length<w.length){ ap=mayus.join(" "); no=w.filter(x=>!mayus.includes(x)).join(" "); } else { ap=w.shift(); no=w.join(" "); } }
+  const cap=x=>x.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
+  return {apellido:ap.toUpperCase(),nombre:cap(no),dni,nac};
+}
+function cargarLista(escuela,curso){
+  const escs=[...new Set(S.pacientes.map(x=>x.escuela).filter(Boolean))];
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
+  const form=el("div",{class:"form card"},
+    el("label",{},"Escuela",el("input",{id:"cl-esc",list:"cl-escs",value:escuela||"",placeholder:"Ej.: Escuela N° 4.123"})),
+    el("datalist",{id:"cl-escs"},escs.map(e=>el("option",{value:e}))),
+    el("label",{},"Curso / grado",el("input",{id:"cl-curso",value:curso||"",placeholder:"Ej.: 1° grado A"})),
+    el("label",{class:"full"},"Alumnos: uno por renglón",el("textarea",{id:"cl-txt",rows:9,placeholder:"PÉREZ Juan 45123456 15/03/2019\nGÓMEZ, Ana Belén 46222333\nRÍOS Mateo",style:"font-family:inherit"})),
+    el("p",{class:"full small muted"},"Escribí o pegá la lista. En cada renglón: apellido y nombre, y si lo tenés, DNI y fecha de nacimiento. Podés copiar la lista desde WhatsApp, un Word o un Excel."),
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"button",onclick:revisar},"Revisar lista")));
+  const rev=el("div"); c.append(form,rev);
+  function revisar(){
+    const esc=c.querySelector("#cl-esc").value.trim(), cur=c.querySelector("#cl-curso").value.trim();
+    if(!esc||!cur){ toast("Completá escuela y curso"); return; }
+    const filas=c.querySelector("#cl-txt").value.split(/\r?\n/).map(parsearLinea).filter(Boolean);
+    if(!filas.length){ toast("Escribí al menos un alumno"); return; }
+    const tb=el("table",{},el("tr",{},["Apellido","Nombre","DNI","Nacimiento",""].map(h=>el("th",{},h))));
+    filas.forEach((f,i)=>{ const ex=S.pacientes.find(p=>(f.dni&&p.dni===f.dni)||(norm(p.apellido)===norm(f.apellido)&&norm(p.nombre)===norm(f.nombre)));
+      f.ex=ex; const inp=(k,w,attrs={})=>el("input",Object.assign({value:k==="nac"?(f.nac?fmt(f.nac):""):f[k],style:"min-height:40px;padding:6px 8px;width:"+w,oninput:e=>{ if(k==="nac"){ fechaTexto(e.target); f.nac=fechaDesde(e.target.value)||""; } else f[k]=e.target.value.trim(); }},attrs));
+      tb.append(el("tr",{},el("td",{},inp("apellido","9em")),el("td",{},inp("nombre","9em")),el("td",{},inp("dni","7em",{inputmode:"numeric"})),el("td",{},inp("nac","7em",{inputmode:"numeric",placeholder:"dd/mm/aaaa"})),
+        el("td",{},ex?el("span",{class:"chip ex"},"Ya cargado"):el("span",{class:"chip ok"},"Nuevo")))); });
+    const sinF=filas.filter(f=>!f.nac&&!(f.ex&&f.ex.nac)).length;
+    rev.replaceChildren(el("div",{class:"card"},el("h3",{},filas.length+" alumnos para "+cur),el("p",{class:"small muted"},"Corregí lo que haga falta antes de guardar."),el("div",{class:"tbl-wrap"},tb),
+      sinF?el("p",{class:"small",style:"color:var(--warn);font-weight:700"},sinF+" sin fecha de nacimiento: se guardan igual, pero hasta que la cargues no se calcula qué vacunas les faltan."):null,
+      el("div",{class:"toolbar"},el("button",{class:"btn",type:"button",onclick:()=>{ let n=0,a=0;
+        filas.forEach(f=>{ if(!f.apellido) return; if(f.ex){ f.ex.escuela=esc; f.ex.curso=cur; if(f.dni&&!f.ex.dni) f.ex.dni=f.dni; if(f.nac&&!f.ex.nac) f.ex.nac=f.nac; a++; }
+          else { S.pacientes.push({id:uid(),apellido:f.apellido,nombre:f.nombre,dni:f.dni,nac:f.nac,sexo:"",domicilio:"",telefono:"",escuela:esc,curso:cur,embarazada:false,aplicadas:{},historial:[]}); n++; } });
+        save(); cerrarOverlay(); setTab("escuelas"); toast(n+" alumnos nuevos, "+a+" ya estaban (actualizados)"); }},"Guardar "+filas.length+" alumnos"))));
+    rev.scrollIntoView({behavior:"smooth"});
+  }
+  abrirOverlay("Cargar lista del curso",c);
+}
 function vEscuelas(v){
-  v.append(el("h2",{},"Escuelas"));
+  v.append(el("div",{class:"toolbar"},el("h2",{style:"flex:1"},"Escuelas"),el("button",{class:"btn",onclick:()=>cargarLista()},"+ Cargar lista")));
   const conEsc=S.pacientes.filter(p=>p.escuela);
-  if(!conEsc.length){ v.append(el("div",{class:"card"},el("p",{},"Todavía no hay chicos con escuela cargada. Al crear o importar un paciente, completá Escuela y Curso."))); return; }
+  if(!conEsc.length){ v.append(el("div",{class:"card"},el("p",{},"Todavía no hay chicos con escuela cargada. Tocá «Cargar lista» y escribí o pegá la lista de alumnos del curso."))); return; }
   avisoEjemplos(v);
   const esc={};
   conEsc.forEach(p=>{ (esc[p.escuela]=esc[p.escuela]||{})[p.curso||"Sin curso"]=(esc[p.escuela][p.curso||"Sin curso"]||[]).concat(p); });
@@ -766,9 +881,10 @@ function vEscuelas(v){
       card.append(el("details",{open:f.length>0},
         el("summary",{},c+" · "+(al.length-f.length)+" de "+al.length+" al día ("+Math.round(100*(al.length-f.length)/al.length)+"%)"),
         el("div",{class:"bar-cob",style:"margin-top:6px","aria-hidden":"true"},el("span",{style:"width:"+Math.round(100*(al.length-f.length)/al.length)+"%"})),
+        el("div",{class:"toolbar",style:"margin-top:8px"},el("button",{class:"btn ghost sm",onclick:()=>cargarLista(e,c)},"+ Agregar alumnos a este curso")),
         el("div",{class:"list",style:"margin-top:8px"},al.sort((a,b)=>nombreCompleto(a).localeCompare(nombreCompleto(b))).map(p=>filaPaciente(p)))));
     });
-    card.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarEscuela(e,cursos)},"Descargar planilla de esta escuela")));
+    card.append(el("div",{class:"toolbar"},el("button",{class:"btn sm",onclick:()=>cargarLista(e,"")},"+ Agregar curso"),el("button",{class:"btn ghost sm",onclick:()=>exportarEscuela(e,cursos)},"Descargar planilla de esta escuela")));
     v.append(card);
   });
 }
@@ -925,6 +1041,10 @@ function vDatos(v){
     el("div",{class:"toolbar"},
       el("button",{class:"btn",onclick:async()=>{ const v=pinIn.value.trim(); if(!/^\d{4,8}$/.test(v)){toast("El PIN tiene que tener de 4 a 8 números");return;} S.pinHash=await hash(v); save(); render(); toast("PIN guardado"); }},S.pinHash?"Cambiar PIN":"Poner PIN"),
       S.pinHash? el("button",{class:"btn ghost",onclick:()=>{S.pinHash=null; save(); render(); toast("PIN quitado");}},"Quitar PIN"):null)));
+  v.append(el("div",{class:"card"},el("h3",{},"Logo del centro de salud"),
+    S.ajustes.logo?el("img",{src:S.ajustes.logo,alt:"Logo actual",style:"max-width:120px;max-height:120px;border-radius:12px;background:#fff;padding:4px;border:1px solid var(--line)"}):el("p",{class:"small muted"},"Subí una foto o imagen del logo. Aparece arriba en la app y en el carnet PDF."),
+    el("div",{class:"toolbar"},el("label",{class:"btn"},S.ajustes.logo?"Cambiar logo":"Subir logo",el("input",{type:"file",id:"f-logo",accept:"image/*",hidden:true,onchange:e=>{ if(e.target.files[0]) subirLogo(e.target.files[0]); e.target.value=""; }})),
+      S.ajustes.logo?el("button",{class:"btn ghost",onclick:()=>{ delete S.ajustes.logo; save(); pintarLogo(); render(); }},"Quitar logo"):null)));
   if("Notification" in window){ const st=Notification.permission;
     v.append(el("div",{class:"card"},el("h3",{},"Avisos en el celular"),
       el("p",{class:"small muted"},st==="granted"?"Activados: una vez por día, al abrir la app, te avisa cuántos pacientes tienen vacunas atrasadas.":st==="denied"?"Los avisos están bloqueados. Activalos en los ajustes del navegador para esta página.":"Recibí un aviso por día con la cantidad de pacientes con vacunas atrasadas."),
@@ -953,6 +1073,11 @@ window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); PROMPT_IN
 window.addEventListener("appinstalled",()=>{ PROMPT_INSTALAR=null; const b=document.getElementById("btn-instalar"); if(b) b.hidden=true; toast("App instalada. Buscala en la pantalla de inicio."); });
 document.getElementById("btn-instalar").addEventListener("click",async()=>{ if(!PROMPT_INSTALAR){ setTab("datos"); return; } PROMPT_INSTALAR.prompt(); try{ await PROMPT_INSTALAR.userChoice; }catch(e){} PROMPT_INSTALAR=null; document.getElementById("btn-instalar").hidden=true; });
 const INSTALADA = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+function pintarLogo(){ const box=document.getElementById("logo-box"); if(!box) return; const L=S.ajustes&&S.ajustes.logo;
+  if(L){ const img=el("img",{id:"logo-hdr",src:L,alt:"Logo"}); box.replaceWith(img); img.id="logo-box"; img.className=""; img.style.cssText="width:44px;height:44px;border-radius:12px;background:#fff;object-fit:contain;padding:3px;flex:none"; }
+  else if(box.tagName==="IMG"){ const ph=el("span",{id:"logo-box",class:"logo-ph"}); ph.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>'; box.replaceWith(ph); } }
+function subirLogo(file){ const rd=new FileReader(); rd.onload=()=>{ const im=new Image(); im.onload=()=>{ const m=256, k=Math.min(1,m/Math.max(im.width,im.height)); const cv=document.createElement("canvas"); cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k);
+  const cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(im,0,0,cv.width,cv.height); S.ajustes.logo=cv.toDataURL("image/png"); save(); pintarLogo(); render(); toast("Logo guardado"); }; im.onerror=()=>toast("No pude abrir esa imagen"); im.src=rd.result; }; rd.readAsDataURL(file); }
 async function avisoDiario(){
   try{
     if(!("Notification" in window) || Notification.permission!=="granted") return;
@@ -966,6 +1091,7 @@ async function avisoDiario(){
 }
 async function iniciar(){
   try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  setTimeout(pintarLogo,0);
   const habia=load();
   if(!habia){ S.pacientes=ejemplos(); const d=(n)=>{const x=new Date(hoy); x.setDate(x.getDate()-n); return iso(x);};
     S.visitas=[{id:uid(),fecha:d(1),hora:"10:15",lat:-24.7698,lng:-65.3941,direccion:"EJEMPLO: Los Ceibos 100",resultado:"vacunado",personas:"EJEMPLO Ríos, Mateo",vacunas:"Antigripal",vacunador:"",obs:"",ejemplo:true},
