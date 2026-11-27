@@ -57,6 +57,11 @@ nav.tabs button[aria-current="true"]{color:var(--accent);font-weight:700}
 .row .name{font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .chip{font-size:.75rem;padding:2px 8px;border-radius:999px;background:var(--gray-soft);color:var(--ink);white-space:nowrap}
+.quick{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.thumb{width:64px;height:64px;border-radius:12px;border:1px solid var(--line);background:var(--gray-soft);display:grid;place-items:center;font-weight:800;overflow:hidden;cursor:pointer;padding:0;color:inherit}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.sec-h{font-weight:800;color:var(--accent);border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.btn.big{width:100%;padding:14px;font-size:1.05rem}
 .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.ex{background:var(--accent-soft);color:var(--accent)}
 .badge{flex:none;min-width:34px;text-align:center;font-weight:700;border-radius:8px;padding:4px 6px;font-variant-numeric:tabular-nums}
 .badge.bad{background:var(--bad-soft);color:var(--bad)} .badge.warn{background:var(--warn-soft);color:var(--warn)} .badge.ok{background:var(--ok-soft);color:var(--ok)}
@@ -486,7 +491,11 @@ function abrirPaciente(id){
       el("span",{class:"chip bad"},r.atrasada.length+" atrasadas"),
       el("span",{class:"chip warn"},r.pendiente.length+" le tocan ahora"),
       el("span",{class:"chip ok"},r.ok+" aplicadas"))));
-  cuerpo.append(el("p",{class:"small muted"},"Tocá la fecha para registrar una vacuna aplicada. Borrá la fecha para quitarla."));
+  cuerpo.append(barraRapida({paciente:p}));
+  if(r.faltan||r.proxima.length||edadCampania(p)) cuerpo.append(el("button",{class:"btn big",onclick:()=>vacunarVarias(p)},"💉 Vacunar varias juntas"+(edadCampania(p)?" ("+(edadCampania(p)===5?"ingreso escolar: 4":"11 años: 3")+")":"")));
+  if(p.escuela||p.autorizacion||(S.adjuntos||[]).some(a=>a.pacienteId===p.id)) cuerpo.append(cardAutorizacion(p));
+  else cuerpo.append(el("details",{class:"card"},el("summary",{},"Autorización y documentos (foto)"),cardAutorizacion(p)));
+  cuerpo.append(el("p",{class:"small muted"},"Tocá «Registrar» para cargar una vacuna sola, o «Vacunar varias juntas» para cargar todas las del día en un paso."));
   const lista=el("div",{class:"list"});
   let grupo=null;
   CAL.forEach(rule=>{
@@ -534,7 +543,7 @@ function editarPaciente(id, base){
     oninput:e=>{ fechaTexto(e.target); const f=fechaDesde(e.target.value); edadInfo.textContent= (e.target.value.length===10&&f&&f<=iso(hoy))? "Edad: "+edadTexto(edadMeses(f)) : ""; edadInfo.className=edadInfo.textContent?"small fecha-ok":"small muted"; }});
   const dniIn=el("input",{id:"p-dni",inputmode:"numeric",value:p.dni||"",placeholder:"Solo números",autocomplete:"off",oninput:e=>{ e.target.value=e.target.value.replace(/\D/g,""); const ex=!id&&e.target.value.length>=7&&S.pacientes.find(x=>x.dni===e.target.value); aviso.hidden=!ex; if(ex){ aviso.replaceChildren("Ya está cargado: "+nombreCompleto(ex)+". ",el("button",{class:"btn sm",type:"button",onclick:()=>abrirPaciente(ex.id)},"Abrir ficha")); } }});
   const aviso=el("div",{class:"full note",hidden:true});
-  const mas=el("details",{class:"full",open:!!id},el("summary",{},"Más datos (opcional)"),el("div",{class:"form",style:"margin-top:10px"},
+  const mas=el("details",{class:"full",open:!!id||!!p.escuela},el("summary",{},"Más datos (opcional)"),el("div",{class:"form",style:"margin-top:10px"},
     el("label",{},"Tipo de documento",el("select",{id:"p-tipodoc"},["DNI","Pasaporte","Cédula extranjera","Sin documento"].map(t=>el("option",{value:t,selected:(p.tipodoc||"DNI")===t},t)))),
     el("label",{},"Sexo",el("select",{id:"p-sexo"},...[["","—"],["F","Femenino"],["M","Masculino"],["X","X / otro"]].map(([k,t])=>el("option",{value:k,selected:p.sexo===k},t)))),
     campo("telefono","Teléfono",{inputmode:"tel"}),
@@ -771,6 +780,7 @@ function unirCopia(d){
     ["apellido","nombre","tipodoc","nac","sexo","domicilio","barrio","tutor","telefono","escuela","curso","cargo","verif","esquema","faltanTxt","lat","lng"].forEach(k=>{ if((p[k]==null||p[k]==="")&&q[k]!=null&&q[k]!==""){ p[k]=q[k]; cambio=true; } });
     if(q.embarazada&&!p.embarazada){p.embarazada=true;cambio=true;}
     if(q.docente&&!p.docente){p.docente=true;cambio=true;}
+    if(q.autorizacion&&q.autorizacion.estado&&!(p.autorizacion&&p.autorizacion.estado)){p.autorizacion=Object.assign({},q.autorizacion);cambio=true;}
     ["grupos","riesgos"].forEach(k=>{ const u=[...new Set([...(p[k]||[]),...(q[k]||[])])]; if(u.length!==(p[k]||[]).length){ p[k]=u; cambio=true; } });
     p.historial=p.historial||[];
     (q.historial||[]).forEach(h=>{ if(!p.historial.some(x=>x.rid===h.rid||(x.dosis===h.dosis&&x.fecha===h.fecha))){ p.historial.push(Object.assign({},h)); res.vacunas++; cambio=true; } });
@@ -1009,6 +1019,7 @@ function mapaDisponible(){ return !!(window.L && navigator.onLine!==undefined); 
 function vVisitas(v){
   S.visitas=S.visitas||[];
   v.append(el("div",{class:"toolbar"},el("h2",{style:"flex:1"},"Visitas"),el("button",{class:"btn",onclick:()=>nuevaVisita(null)},"+ Nueva visita")));
+  v.append(barraRapida({visita:{adjuntar:f=>{ const x=nuevaVisita(null); setTimeout(()=>x&&x.adjuntar(f),50); }}}));
   const lista=S.visitas.filter(x=>filtroVis==="todas"||(hoy-parseISO(x.fecha))/86400000<=+filtroVis).sort((a,b)=>(b.fecha+b.hora)<(a.fecha+a.hora)?-1:1);
   const porRes={}; lista.forEach(x=>porRes[x.resultado]=(porRes[x.resultado]||0)+1);
   v.append(el("select",{id:"f-vis","aria-label":"Período",onchange:e=>{filtroVis=e.target.value;render();}},[["7","Últimos 7 días"],["30","Últimos 30 días"],["365","Último año"],["todas","Todas"]].map(([k,t])=>el("option",{value:k,selected:filtroVis===k},t))));
@@ -1054,7 +1065,19 @@ function nuevaVisita(x, paciente){
   }
   pintarUbic(); if(!x) tomarGPS();
   const f=(k,t,attrs={},full)=>el("label",{class:full?"full":""},t,el("input",Object.assign({id:"v-"+k,value:vis[k]||""},attrs)));
+  if(paciente) vis.pacienteId=paciente.id;
+  const etiquetaP=p=>nombreCompleto(p)+(p.dni?" · DNI "+p.dni:"");
+  const pacSel=()=>S.pacientes.find(y=>y.id===vis.pacienteId);
+  const pacIn=el("input",{id:"v-pac",list:"v-pacs",placeholder:"Buscá por apellido o DNI",autocomplete:"off",value:pacSel()?etiquetaP(pacSel()):"",onchange:e=>{ const p=S.pacientes.find(y=>etiquetaP(y)===e.target.value); vis.pacienteId=p?p.id:undefined; if(p){ const per=form.querySelector("#v-personas"); if(!per.value) per.value=nombreCompleto(p); const dir=form.querySelector("#v-direccion"); if(!dir.value&&p.domicilio) dir.value=p.domicilio; } }});
+  const fotos=el("div",{class:"chips"});
+  const pintarFotos=()=>{ fotos.replaceChildren(...(S.adjuntos||[]).filter(a=>a.visitaId===vis.id).map(a=>{ const b=el("button",{type:"button",class:"thumb",onclick:()=>verAdjunto(a)},"📷"); ADJ.get(a.id).then(d=>{ if(d&&a.tipo==="foto") b.replaceChildren(el("img",{src:d,alt:"Foto de la visita"})); }).catch(()=>{}); return b; })); };
+  const adjuntar=async(file)=>{ const p=pacSel(); const a=await guardarAdjunto(file,p&&p.escuela||"","", "Visita "+fmt(vis.fecha)+(vis.direccion?" · "+vis.direccion:""),{visitaId:vis.id,pacienteId:p?p.id:undefined}); if(a){ pintarFotos(); toast("Foto guardada en la visita"); } };
+  pintarFotos();
+  const leerForm=()=>{ ["fecha","hora","direccion","personas","vacunas","vacunador","obs","resultado"].forEach(k=>vis[k]=form.querySelector("#v-"+k).value.trim()); };
+  const guardarVis=()=>{ leerForm(); if(vis.vacunador) S.ajustes.vacunador=vis.vacunador; const pac=pacSel(); if(pac && vis.lat!=null){ pac.lat=vis.lat; pac.lng=vis.lng; if(vis.direccion&&!pac.domicilio) pac.domicilio=vis.direccion; }
+    const i=S.visitas.findIndex(y=>y.id===vis.id); if(i>=0) S.visitas[i]=vis; else S.visitas.push(vis); save(); };
   const form=el("form",{class:"form card"},ubic,
+    el("label",{class:"full"},"Paciente del padrón (opcional)",pacIn,el("datalist",{id:"v-pacs"},S.pacientes.map(p=>el("option",{value:etiquetaP(p)})))),
     f("fecha","Fecha",{type:"date",max:iso(hoy),required:true}), f("hora","Hora",{type:"time"}),
     f("direccion","Dirección",{placeholder:"Calle y número, manzana, lote"},true),
     el("label",{class:"full"},"Resultado",el("select",{id:"v-resultado"},RESULTADOS.map(r=>el("option",{value:r[0],selected:vis.resultado===r[0]},r[1])))),
@@ -1062,17 +1085,19 @@ function nuevaVisita(x, paciente){
     f("vacunas","Vacunas aplicadas",{placeholder:"Ej.: Antigripal, dT"},true),
     f("vacunador","Vacunador/a"),
     el("label",{class:"full"},"Observaciones",el("textarea",{id:"v-obs",rows:2},vis.obs||"")),
+    el("div",{class:"full"},el("div",{class:"small muted",style:"margin-bottom:6px"},"Fotos de la visita (autorización, carnet, domicilio):"),fotos,
+      el("div",{class:"toolbar"},el("label",{class:"btn ghost sm"},"📷 Sacar foto",el("input",{type:"file",id:"v-cam",accept:"image/*",capture:"environment",hidden:true,onchange:e=>{ const fl=e.target.files[0]; e.target.value=""; if(fl) adjuntar(fl); }})),
+        el("label",{class:"btn ghost sm"},"Subir foto o PDF",el("input",{type:"file",accept:"image/*,application/pdf,.pdf",hidden:true,onchange:e=>{ const fl=e.target.files[0]; e.target.value=""; if(fl) adjuntar(fl); }})))),
+    el("div",{class:"full"},el("div",{class:"small muted",style:"margin-bottom:6px"},"Revisar sus vacunas en el sistema:"),botonesSistemas()),
     el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Guardar visita"),
+      el("button",{class:"btn ghost",type:"button",onclick:()=>{ const p=pacSel(); if(!p){ toast("Elegí primero el paciente del padrón (o cargalo en Pacientes)"); pacIn.focus(); return; } guardarVis();
+        vacunarVarias(p,{lugar:"Visita domiciliaria",volver:()=>nuevaVisita(vis),alGuardar:nombres=>{ vis.vacunas=[vis.vacunas,...nombres].filter(Boolean).join(", "); vis.resultado="vacunado"; if(!vis.personas.includes(nombreCompleto(p))) vis.personas=[vis.personas,nombreCompleto(p)].filter(Boolean).join("; "); save(); nuevaVisita(vis); }}); }},"💉 Vacunar en la visita"),
       x?el("button",{class:"btn danger",type:"button",onclick:()=>{ S.visitas=S.visitas.filter(y=>y.id!==x.id); save(); cerrarOverlay(); toast("Visita borrada"); }},"Borrar"):null,
       vis.lat!=null&&x?el("a",{class:"btn ghost",href:"https://www.google.com/maps/dir/?api=1&destination="+vis.lat+","+vis.lng,target:"_blank",rel:"noopener"},"Cómo llegar"):null));
-  form.addEventListener("submit",e=>{ e.preventDefault();
-    ["fecha","hora","direccion","personas","vacunas","vacunador","obs","resultado"].forEach(k=>vis[k]=form.querySelector("#v-"+k).value.trim());
-    if(vis.vacunador) S.ajustes.vacunador=vis.vacunador;
-    if(paciente) vis.pacienteId=paciente.id;
-    const pac=S.pacientes.find(y=>y.id===vis.pacienteId); if(pac && vis.lat!=null){ pac.lat=vis.lat; pac.lng=vis.lng; if(vis.direccion&&!pac.domicilio) pac.domicilio=vis.direccion; }
-    const i=S.visitas.findIndex(y=>y.id===vis.id); if(i>=0) S.visitas[i]=vis; else S.visitas.push(vis);
-    save(); toast(vis.lat==null?"Visita guardada (sin ubicación)":"Visita guardada en el mapa"); TAB="visitas"; document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab==="visitas"?"true":"false")); cerrarOverlay(); });
-  abrirOverlay(x?"Visita":"Nueva visita",form);
+  form.addEventListener("submit",e=>{ e.preventDefault(); guardarVis();
+    toast(vis.lat==null?"Visita guardada (sin ubicación)":"Visita guardada en el mapa"); TAB="visitas"; document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab==="visitas"?"true":"false")); cerrarOverlay(); });
+  abrirOverlay(x||S.visitas.some(y=>y.id===vis.id)?"Visita":"Nueva visita",form);
+  return {adjuntar};
 }
 
 /* ===================== ARCHIVOS ADJUNTOS (fotos y PDF de planillas) ===================== */
@@ -1087,12 +1112,12 @@ const ADJ={ db:null,
 function leerComoDataURL(file){ return new Promise((ok,mal)=>{ const rd=new FileReader(); rd.onload=()=>ok(rd.result); rd.onerror=()=>mal(rd.error); rd.readAsDataURL(file); }); }
 function achicarFoto(dataURL,max=1600){ return new Promise(ok=>{ const im=new Image(); im.onload=()=>{ const k=Math.min(1,max/Math.max(im.width,im.height)); const c=document.createElement("canvas"); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k); c.getContext("2d").drawImage(im,0,0,c.width,c.height); ok(c.toDataURL("image/jpeg",0.78)); }; im.onerror=()=>ok(dataURL); im.src=dataURL; }); }
 function dataURLaBlob(d){ const [h,b]=d.split(","); const tipo=(/data:([^;]+)/.exec(h)||[])[1]||"application/octet-stream"; const bin=atob(b); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Blob([u],{type:tipo}); }
-async function guardarAdjunto(file,escuela,curso,nota){
+async function guardarAdjunto(file,escuela,curso,nota,extra){
   const esPDF=/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name), esImg=/^image\//.test(file.type);
   if(!esPDF&&!esImg){ toast("Solo fotos o archivos PDF"); return null; }
   if(file.size>20*1024*1024){ toast("El archivo es muy grande (más de 20 MB)"); return null; }
   let data=await leerComoDataURL(file); if(esImg) data=await achicarFoto(data);
-  const a={id:uid(),escuela:escuela||"",curso:curso||"",nombre:file.name||("foto_"+iso(hoy)+".jpg"),tipo:esPDF?"pdf":"foto",fecha:iso(hoy),tam:Math.round(data.length*0.75),nota:nota||"",transcripta:false};
+  const a={id:uid(),escuela:escuela||"",curso:curso||"",nombre:file.name||("foto_"+iso(hoy)+".jpg"),tipo:esPDF?"pdf":"foto",fecha:iso(hoy),tam:Math.round(data.length*0.75),nota:nota||"",transcripta:false}; if(extra) Object.assign(a,extra,{transcripta:true});
   try{ await ADJ.put(a.id,data); }catch(e){ toast("No se pudo guardar el archivo en este celular"); return null; }
   S.adjuntos=S.adjuntos||[]; S.adjuntos.push(a); save(); return a;
 }
@@ -1128,24 +1153,157 @@ function formAdjuntar(escuela,curso,camara){
 
 /* ===================== ENLACES A SISTEMAS OFICIALES ===================== */
 // Solo enlaces: la app nunca guarda usuarios ni claves.
-const ENLACES_FIJOS=[["SISA / NomiVac","https://sisa.msal.gov.ar/sisa/","Sistema Integrado de Información Sanitaria (Ministerio de Salud de la Nación). Entrás con tu usuario."],
+const ENLACES_FIJOS=[["SISA / NomiVac","https://sisa.msal.gov.ar/sisa/#sisa","Sistema Integrado de Información Sanitaria (Ministerio de Salud de la Nación). Entrás con tu usuario."],
+  ["Acuario (SAFESA)","https://acuario.safesa.gob.ar/login.asp","Sistema de la Provincia de Salta. Entrás con tu usuario."],
   ["Mi Argentina (carnet del paciente)","https://www.argentina.gob.ar/miargentina","El paciente puede ver su carnet de vacunas digital con su propia cuenta."]];
-function enlacesUsuario(){ S.ajustes.enlaces=S.ajustes.enlaces||{acuario:"",safesa:""}; return S.ajustes.enlaces; }
-function urlSegura(u){ try{ const x=new URL(String(u).trim()); return x.protocol==="https:"&&!x.username&&!x.password ? x.href : null; }catch(e){ return null; } }
-function botonesSistemas(){
-  const en=enlacesUsuario();
-  const items=[...ENLACES_FIJOS.map(([t,u])=>[t,u]),["Acuario",urlSegura(en.acuario)],["SAFESA",urlSegura(en.safesa)]];
-  return el("div",{class:"toolbar"},items.map(([t,u])=>u? el("a",{class:"btn ghost sm",href:u,target:"_blank",rel:"noopener noreferrer"},t+" ↗") : el("button",{class:"btn ghost sm",onclick:()=>{ ESC.vista="enlaces"; cerrarOverlay(); setTab("escuelas"); toast("Cargá el enlace de "+t+" una vez y queda guardado"); }},t+" (cargar enlace)")));
-}
+function botonesSistemas(){ return el("div",{class:"toolbar"},ENLACES_FIJOS.map(([t,u])=>el("a",{class:"btn ghost sm",href:u,target:"_blank",rel:"noopener noreferrer"},t.split(" (")[0]+" ↗"))); }
 function cardEnlaces(v){
-  const en=enlacesUsuario();
-  const campoU=(k,t)=>el("label",{},t,el("input",{id:"en-"+k,type:"url",inputmode:"url",placeholder:"https://…",value:en[k]||"",onchange:e=>{ const u=e.target.value.trim(); if(u&&!urlSegura(u)){ toast("El enlace tiene que empezar con https://"); e.target.value=en[k]||""; return; } en[k]=u?urlSegura(u):""; save(); toast("Enlace guardado"); render(); }}));
   v.append(el("div",{class:"card"},el("h3",{},"Revisar vacunas en los sistemas oficiales"),
     el("p",{class:"small muted"},"Tocá para abrir la página oficial. La app no guarda tus usuarios ni tus claves: entrás vos, como siempre."),
-    ENLACES_FIJOS.map(([t,u,d])=>el("div",{class:"dose"},el("div",{},el("b",{},t),el("div",{class:"small muted"},d)),el("a",{class:"btn sm",href:u,target:"_blank",rel:"noopener noreferrer"},"Abrir ↗"))),
-    el("div",{class:"form",style:"margin-top:10px"},campoU("acuario","Enlace de Acuario"),campoU("safesa","Enlace de SAFESA"),
-      el("p",{class:"full small muted"},"No encontré publicadas las direcciones oficiales de Acuario y SAFESA, así que no las puse por mi cuenta. Abrí el sistema en el navegador del celular, copiá la dirección (empieza con https://) y pegala acá. Queda guardada."),
-      ["acuario","safesa"].some(k=>urlSegura(en[k]))? el("div",{class:"full toolbar"},["acuario","safesa"].filter(k=>urlSegura(en[k])).map(k=>el("a",{class:"btn sm",href:urlSegura(en[k]),target:"_blank",rel:"noopener noreferrer"},"Abrir "+(k==="acuario"?"Acuario":"SAFESA")+" ↗"))):null)));
+    ENLACES_FIJOS.map(([t,u,d])=>el("div",{class:"dose"},el("div",{},el("b",{},t),el("div",{class:"small muted"},d)),el("a",{class:"btn sm",href:u,target:"_blank",rel:"noopener noreferrer"},"Abrir ↗")))));
+}
+
+/* ===================== ACCESOS RÁPIDOS ===================== */
+// ctx: {escuela, curso, paciente, visita}. Cámara, importar, exportar y sistemas oficiales a un toque.
+function barraRapida(ctx={}){
+  const cam=el("label",{class:"btn sm"},"📷 Cámara",el("input",{type:"file",accept:"image/*",capture:"environment",hidden:true,onchange:async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return;
+    if(ctx.paciente){ await adjuntarAPaciente(ctx.paciente,f,"documento"); return; }
+    if(ctx.visita){ ctx.visita.adjuntar(f); return; }
+    const a=await guardarAdjunto(f,ctx.escuela||ESC.escuela||"",ctx.curso||"",""); if(a){ ESC.vista="planillas"; setTab("escuelas"); toast("Foto guardada en Planillas"); } }}));
+  return el("div",{class:"quick",role:"group","aria-label":"Accesos rápidos"},cam,
+    el("label",{class:"btn ghost sm"},"⬆ Importar",el("input",{type:"file",accept:".xlsx,.xls,.csv,.txt",hidden:true,onchange:e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return; IMPORT_FORZAR=ctx.escuela?{escuela:ctx.escuela}:null; leerArchivo(f); }})),
+    el("button",{class:"btn ghost sm",onclick:exportarTodo},"⬇ Exportar todo"),
+    ENLACES_FIJOS.slice(0,2).map(([t,u])=>el("a",{class:"btn ghost sm",href:u,target:"_blank",rel:"noopener noreferrer"},t.split(" (")[0]+" ↗")));
+}
+
+/* ===================== AUTORIZACIÓN DE MADRE / PADRE / TUTOR ===================== */
+const AUTORIZ=[["","Sin dato"],["pendiente","Pendiente"],["si","Autorizó"],["no","No autorizó"]];
+const textoAut=p=>p.autorizacion&&p.autorizacion.estado?({pendiente:"Autorización pendiente",si:"Autorizó",no:"No autorizó"})[p.autorizacion.estado]:"";
+async function adjuntarAPaciente(p,f,clase){
+  const a=await guardarAdjunto(f,p.escuela||"",p.curso||"",(clase==="autorizacion"?"Autorización de ":"Documento de ")+nombreCompleto(p),{clase,pacienteId:p.id});
+  if(!a) return;
+  if(clase==="autorizacion"){ p.autorizacion=Object.assign({},p.autorizacion||{}); if(!p.autorizacion.estado) p.autorizacion.estado="si"; if(!p.autorizacion.fecha) p.autorizacion.fecha=iso(hoy); if(!p.autorizacion.firmo&&p.tutor) p.autorizacion.firmo=p.tutor; save(); }
+  toast(clase==="autorizacion"?"Foto de la autorización guardada":"Foto guardada en la ficha"); abrirPaciente(p.id);
+}
+function cardAutorizacion(p){
+  const au=p.autorizacion||{};
+  const fotos=(S.adjuntos||[]).filter(a=>a.pacienteId===p.id);
+  const thumbs=el("div",{class:"chips"});
+  fotos.forEach(a=>{ const b=el("button",{class:"thumb",onclick:()=>verAdjunto(a),title:a.nota||a.nombre},a.tipo==="pdf"?"PDF":"📷"); if(a.tipo==="foto") ADJ.get(a.id).then(d=>{ if(d) b.replaceChildren(el("img",{src:d,alt:a.nota||"Foto"})); }).catch(()=>{}); thumbs.append(b); });
+  const guardar=()=>{ p.autorizacion={estado:c.querySelector("#au-estado").value,firmo:c.querySelector("#au-firmo").value.trim(),fecha:c.querySelector("#au-fecha").value}; save(); toast("Autorización guardada"); };
+  const c=el("div",{class:"card"},el("h3",{},"Autorización y documentos"),
+    el("div",{class:"form"},
+      el("label",{},"Autorización de madre/padre/tutor",el("select",{id:"au-estado",onchange:guardar},AUTORIZ.map(([k,t])=>el("option",{value:k,selected:(au.estado||"")===k},t)))),
+      el("label",{},"Quién firmó",el("input",{id:"au-firmo",value:au.firmo||p.tutor||"",placeholder:"Apellido y nombre",onchange:guardar})),
+      el("label",{},"Fecha",el("input",{id:"au-fecha",type:"date",value:au.fecha||"",max:iso(hoy),onchange:guardar}))),
+    el("div",{class:"toolbar"},
+      el("label",{class:"btn sm"},"📷 Foto de la autorización",el("input",{type:"file",id:"au-cam",accept:"image/*",capture:"environment",hidden:true,onchange:e=>{ const f=e.target.files[0]; e.target.value=""; if(f) adjuntarAPaciente(p,f,"autorizacion"); }})),
+      el("label",{class:"btn ghost sm"},"Subir foto o PDF",el("input",{type:"file",accept:"image/*,application/pdf,.pdf",hidden:true,onchange:e=>{ const f=e.target.files[0]; e.target.value=""; if(f) adjuntarAPaciente(p,f,"autorizacion"); }}))),
+    fotos.length?thumbs:el("p",{class:"small muted"},"Sin fotos todavía. La foto queda guardada solo en este celular y entra en la copia de seguridad."));
+  return c;
+}
+
+/* ===================== VACUNAR VARIAS JUNTAS ===================== */
+// Carga en un solo paso todas las vacunas que le tocan (ej.: ingreso escolar 4, 11 años 3).
+function vacunarVarias(p,ctx={}){
+  const ap=p.aplicadas||{}; const r=resumen(p); const ed=edadCampania(p);
+  const cands=[], ya=new Set();
+  const add=(rule,marcar)=>{ if(ya.has(rule.id)) return; ya.add(rule.id); cands.push({rule,marcar}); };
+  if(ed) CAL.filter(x=>CAMP[ed].includes(x.id)&&!ap[x.id]&&!["ok","nocorresponde","fuera"].includes(estadoDosis(p,x).e)).forEach(x=>add(x,true));
+  [...r.atrasada,...r.pendiente].forEach(x=>add(x,!ed||CAMP[ed].includes(x.id)));
+  r.proxima.forEach(x=>add(x,false));
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
+  c.append(el("div",{class:"card"},el("b",{},nombreCompleto(p)),el("div",{class:"small muted"},[p.dni&&"DNI "+p.dni,edadTexto(edadMeses(p.nac)),p.escuela&&(p.escuela+" "+(p.curso||"")),textoAut(p)].filter(Boolean).join(" · ")),
+    ed?el("p",{class:"small",style:"margin:6px 0 0"},el("b",{},ed===5?"Ingreso escolar: 4 vacunas":"11 años: 3 vacunas")," (nacido en "+anioNac(p)+", campaña "+anioCampania()+")"):null,
+    p.autorizacion&&p.autorizacion.estado==="no"?el("div",{class:"note",style:"background:var(--bad-soft);color:var(--bad)"},"Atención: figura que NO autorizaron la vacunación."):null));
+  if(!cands.length){ c.append(el("div",{class:"card"},el("p",{},"No tiene vacunas pendientes según el calendario. Si igual aplicaste algo, registralo desde la ficha.")),el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>abrirPaciente(p.id)},"Ir a la ficha"))); abrirOverlay("Vacunar",c); return; }
+  const fecha=el("input",{type:"date",id:"vv-fecha",value:iso(hoy),max:iso(hoy),required:true});
+  const filas=cands.map(({rule,marcar})=>{ const act=lotesActivos(rule.vac,iso(hoy)); const lid="vv-l-"+rule.id;
+    const aviso=el("div",{class:"small",style:"color:var(--bad);font-weight:700"});
+    const chk=el("input",{type:"checkbox",class:"vv-chk",value:rule.id,checked:marcar});
+    const lote=el("input",{id:lid,list:lid+"-d",placeholder:"Lote",value:act[0]?act[0].l.lote:"",style:"min-height:40px;max-width:9em"});
+    return {rule,chk,lote,aviso,node:el("div",{class:"dose"},el("label",{class:"check",style:"flex:1"},chk,el("span",{},el("b",{},rule.vac)," · "+rule.dosis,aviso)),el("div",{},lote,el("datalist",{id:lid+"-d"},act.map(x=>el("option",{value:x.l.lote})))))}; });
+  const revisar=()=>{ let n=0; filas.forEach(f=>{ const t=f.chk.checked?avisoTemprano(p,f.rule,fecha.value):null; f.aviso.textContent=t||""; if(t) n++; }); return n; };
+  fecha.addEventListener("change",revisar); filas.forEach(f=>f.chk.addEventListener("change",revisar));
+  const lugar=el("select",{id:"vv-lugar"},LUGARES.map(x=>el("option",{value:x,selected:(ctx.lugar||(p.escuela&&!ctx.visita?"Escuela":S.ajustes.lugar)||"Vacunatorio")===x},x)));
+  const vac=el("input",{id:"vv-vacunador",value:S.ajustes.vacunador||""}), est=el("input",{id:"vv-est",value:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos"});
+  const form=el("form",{class:"form card"},
+    el("div",{class:"full"},el("b",{},"Marcá las vacunas que aplicaste"),el("div",{class:"small muted"},"Las marcadas se registran juntas con la misma fecha. Poné el lote de cada una (descuenta del stock).")),
+    el("div",{class:"full list"},filas.map(f=>f.node)),
+    el("label",{},"Fecha de aplicación",fecha), el("label",{},"Lugar",lugar), el("label",{},"Vacunador/a",vac), el("label",{},"Establecimiento",est),
+    el("label",{class:"full"},"Observaciones",el("input",{id:"vv-obs",placeholder:"Opcional"})),
+    el("div",{class:"full"},el("div",{class:"small muted",style:"margin-bottom:6px"},"Antes de vacunar, revisá en el sistema:"),botonesSistemas()),
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Registrar vacunas marcadas"),el("button",{class:"btn ghost",type:"button",onclick:()=>ctx.volver?ctx.volver():abrirPaciente(p.id)},"Cancelar")));
+  revisar();
+  form.addEventListener("submit",e=>{ e.preventDefault();
+    const sel=filas.filter(f=>f.chk.checked); if(!sel.length){ toast("Marcá al menos una vacuna"); return; }
+    if(revisar() && !form.dataset.ok){ form.dataset.ok="1"; toast("Hay avisos en rojo. Revisalos y tocá Registrar otra vez."); return; }
+    p.historial=p.historial||[]; const f=fecha.value||iso(hoy);
+    sel.forEach(x=>{ if(p.historial.some(h=>h.dosis===x.rule.id&&h.fecha===f)) return;
+      p.historial.push({rid:uid(),dosis:x.rule.id,fecha:f,lote:x.lote.value.trim().toUpperCase(),vacunador:vac.value.trim(),lugar:lugar.value,establecimiento:est.value.trim(),condicion:condSugerida(p,x.rule),obs:form.querySelector("#vv-obs").value.trim(),esavi:false});
+      recalcular(p,x.rule.id); });
+    S.ajustes.vacunador=vac.value.trim(); S.ajustes.establecimiento=est.value.trim(); save();
+    const nombres=sel.map(x=>x.rule.vac.split(" (")[0]+" "+x.rule.dosis.split(" (")[0]);
+    toast(sel.length+(sel.length===1?" vacuna registrada":" vacunas registradas"));
+    if(ctx.alGuardar) ctx.alGuardar(nombres); else abrirPaciente(p.id);
+  });
+  c.append(form); abrirOverlay("Vacunar varias juntas",c);
+}
+
+/* ===================== EXCEL COMPLETO (PC ⇄ CELULAR) ===================== */
+const condCodigos=p=>[p.embarazada&&"embarazada",...(p.grupos||[]).map(k=>"grupo:"+k),...(p.riesgos||[]).map(k=>"riesgo:"+k)].filter(Boolean).join(", ");
+function hojasCompletas(){
+  const pac=S.pacientes.filter(p=>!p.ejemplo);
+  const P=pac.map(p=>({"ID interno":p.id,Apellido:p.apellido,Nombre:p.nombre,"Tipo doc.":p.tipodoc||"DNI",DNI:p.dni,Sexo:p.sexo||"","Fecha de nacimiento":fmt(p.nac).replace("—",""),Domicilio:p.domicilio||"",Barrio:p.barrio||"","Teléfono":p.telefono||"",Tutor:p.tutor||"",Escuela:p.escuela||"",Curso:p.curso||"",Docente:p.docente?"Sí":"",Cargo:p.cargo||"",
+    Condiciones:etiquetasCond(p).join(", "),"Condiciones (códigos)":condCodigos(p),"Otra enfermedad":p.riesgoOtro||"","Verificación":p.verif||"","Autorización":textoAut(p),"Autorización firmó":(p.autorizacion||{}).firmo||"","Autorización fecha":fmt((p.autorizacion||{}).fecha).replace("—",""),
+    "Esquema (docente)":p.esquema||"","Le falta (docente)":p.faltanTxt||"",Latitud:p.lat??"",Longitud:p.lng??"","Vacunas que le faltan (informativo)":(()=>{const r=resumen(p); return [...r.atrasada,...r.pendiente].map(corto).join(", ");})()}));
+  const V=[]; pac.forEach(p=>(p.historial||[]).forEach(h=>{ const r=CAL.find(c=>c.id===h.dosis)||{vac:h.dosis,dosis:""};
+    V.push({"ID paciente":p.id,DNI:p.dni,Apellido:p.apellido,Nombre:p.nombre,"Fecha de nacimiento":fmt(p.nac).replace("—",""),Vacuna:r.vac,Dosis:r.dosis,"Código":h.dosis,"Fecha de aplicación":fmt(h.fecha),Lote:h.lote||"","Vacunador/a":h.vacunador||"",Lugar:h.lugar||"",Establecimiento:h.establecimiento||"","Condición":h.condicion||"",ESAVI:h.esavi?"Sí":"","Pasado a NomiVac":h.pasado?"Sí":"",Observaciones:h.obs||"","ID registro":h.rid||""}); }));
+  pac.forEach(p=>Object.entries(p.aplicadas||{}).forEach(([k,f])=>{ if((p.historial||[]).some(h=>h.dosis===k&&h.fecha===f)) return; const r=CAL.find(c=>c.id===k)||{vac:k,dosis:""};
+    V.push({"ID paciente":p.id,DNI:p.dni,Apellido:p.apellido,Nombre:p.nombre,"Fecha de nacimiento":fmt(p.nac).replace("—",""),Vacuna:r.vac,Dosis:r.dosis,"Código":k,"Fecha de aplicación":fmt(f),Lote:"","Vacunador/a":"",Lugar:"",Establecimiento:"","Condición":"",ESAVI:"","Pasado a NomiVac":"",Observaciones:"Sin detalle (cargada solo con fecha)","ID registro":""}); }));
+  const Vi=(S.visitas||[]).filter(x=>!x.ejemplo).map(x=>({"ID visita":x.id,Fecha:fmt(x.fecha),Hora:x.hora||"","Dirección":x.direccion||"",Resultado:resInfo(x.resultado)[1],"Código resultado":x.resultado,Personas:x.personas||"","Vacunas aplicadas":x.vacunas||"","Vacunador/a":x.vacunador||"",Observaciones:x.obs||"",Latitud:x.lat??"",Longitud:x.lng??"","ID paciente":x.pacienteId||""}));
+  const D=P.filter(x=>x.Docente==="Sí");
+  return {Pacientes:P,Vacunas:V,Visitas:Vi,Docentes:D};
+}
+async function exportarTodo(){
+  const H=hojasCompletas(); const nombre="vacunatorio_completo_"+iso(hoy);
+  if(window.XLSX){ const wb=XLSX.utils.book_new(); Object.entries(H).forEach(([k,f])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(f.length?f:[{}]),k));
+    const out=XLSX.write(wb,{bookType:"xlsx",type:"array"}); return guardarArchivo(nombre+".xlsx",new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); }
+  // Sin la librería de Excel (sin internet la primera vez): tres CSV
+  for(const k of ["Pacientes","Vacunas","Visitas"]) if(H[k].length) await guardarArchivo(nombre+"_"+k.toLowerCase()+".csv",aCSV(H[k]));
+}
+const siNo=v=>/^(s[ií]|si|x|1|true)$/i.test(String(v||"").trim());
+function importarLibroCompleto(hojas,nombreArchivo){
+  const res={nuevos:0,act:0,vac:0,vis:0,omit:0};
+  const val=(f,k)=>{ const v=f[k]; return v==null?"":(v instanceof Date?iso(v):String(v).trim()); };
+  (hojas.Pacientes||[]).forEach(f=>{ const id=val(f,"ID interno"), dni=val(f,"DNI").replace(/\D/g,"");
+    let p=(id&&S.pacientes.find(x=>x.id===id))||(dni&&S.pacientes.find(x=>x.dni===dni));
+    const nuevo=!p; if(nuevo){ if(!val(f,"Apellido")&&!dni) return; p={id:id||uid(),aplicadas:{},historial:[],embarazada:false}; }
+    const set=(k,v)=>{ if(v!=="") p[k]=v; };
+    set("apellido",val(f,"Apellido").toUpperCase()); set("nombre",val(f,"Nombre")); set("tipodoc",val(f,"Tipo doc.")); set("dni",dni); set("sexo",val(f,"Sexo").slice(0,1).toUpperCase());
+    const nac=fechaDesde(f["Fecha de nacimiento"]); if(nac) p.nac=nac;
+    ["Domicilio","Barrio","Teléfono","Tutor","Escuela","Curso","Cargo"].forEach(k=>set({"Teléfono":"telefono"}[k]||k.toLowerCase(),val(f,k)));
+    if(val(f,"Docente")!=="") p.docente=siNo(val(f,"Docente"));
+    const cc=val(f,"Condiciones (códigos)"); if(cc){ const xs=cc.split(/\s*,\s*/); p.embarazada=xs.includes("embarazada"); p.grupos=xs.filter(x=>x.startsWith("grupo:")).map(x=>x.slice(6)); p.riesgos=xs.filter(x=>x.startsWith("riesgo:")).map(x=>x.slice(7)); }
+    set("riesgoOtro",val(f,"Otra enfermedad")); set("verif",val(f,"Verificación")); set("esquema",val(f,"Esquema (docente)")); set("faltanTxt",val(f,"Le falta (docente)"));
+    const at=val(f,"Autorización"); if(at){ const k=/no autoriz/i.test(at)?"no":/pend/i.test(at)?"pendiente":/autoriz/i.test(at)?"si":""; p.autorizacion=Object.assign(p.autorizacion||{},{estado:k,firmo:val(f,"Autorización firmó")||(p.autorizacion||{}).firmo||"",fecha:fechaDesde(f["Autorización fecha"])||(p.autorizacion||{}).fecha||""}); }
+    const la=parseFloat(val(f,"Latitud")), lo=parseFloat(val(f,"Longitud")); if(!isNaN(la)&&!isNaN(lo)){ p.lat=la; p.lng=lo; }
+    if(nuevo){ S.pacientes.push(p); res.nuevos++; } else res.act++; });
+  (hojas.Vacunas||[]).forEach(f=>{ const id=val(f,"ID paciente"), dni=val(f,"DNI").replace(/\D/g,"");
+    const p=(id&&S.pacientes.find(x=>x.id===id))||(dni&&S.pacientes.find(x=>x.dni===dni)); if(!p){ res.omit++; return; }
+    const fa=fechaDesde(f["Fecha de aplicación"]); let cod=val(f,"Código"); if(!CAL.some(c=>c.id===cod)){ const r=p.nac?reglaDesde(p,val(f,"Vacuna"),val(f,"Dosis")):null; cod=r?r.id:""; }
+    if(!fa||!cod){ res.omit++; return; }
+    p.historial=p.historial||[]; const rid=val(f,"ID registro");
+    if(p.historial.some(h=>(rid&&h.rid===rid)||(h.dosis===cod&&h.fecha===fa))) return;
+    p.historial.push({rid:rid||uid(),dosis:cod,fecha:fa,lote:val(f,"Lote").toUpperCase(),vacunador:val(f,"Vacunador/a"),lugar:val(f,"Lugar"),establecimiento:val(f,"Establecimiento"),condicion:val(f,"Condición"),obs:val(f,"Observaciones")||("Importado de "+nombreArchivo),esavi:siNo(val(f,"ESAVI")),pasado:siNo(val(f,"Pasado a NomiVac"))});
+    recalcular(p,cod); res.vac++; });
+  S.visitas=S.visitas||[];
+  (hojas.Visitas||[]).forEach(f=>{ const id=val(f,"ID visita"); if(id&&S.visitas.some(x=>x.id===id)) return; const fe=fechaDesde(f["Fecha"]); if(!fe) return;
+    const la=parseFloat(val(f,"Latitud")), lo=parseFloat(val(f,"Longitud"));
+    S.visitas.push({id:id||uid(),fecha:fe,hora:val(f,"Hora"),direccion:val(f,"Dirección"),resultado:val(f,"Código resultado")||(RESULTADOS.find(r=>r[1]===val(f,"Resultado"))||["otro"])[0],personas:val(f,"Personas"),vacunas:val(f,"Vacunas aplicadas"),vacunador:val(f,"Vacunador/a"),obs:val(f,"Observaciones"),lat:isNaN(la)?null:la,lng:isNaN(lo)?null:lo,pacienteId:val(f,"ID paciente")||undefined}); res.vis++; });
+  save(); render();
+  toast("Importado: "+res.nuevos+" pacientes nuevos, "+res.act+" actualizados, "+res.vac+" vacunas, "+res.vis+" visitas"+(res.omit?" ("+res.omit+" filas sin reconocer)":""));
+  return res;
 }
 
 /* ===================== PESTAÑA: ESCUELAS ===================== */
@@ -1157,16 +1315,30 @@ function listaEscuelas(){ return [...new Set([...S.pacientes.map(x=>x.escuela),.
 function anioCampania(){ return ESC.anio || (hoy.getMonth()>=9? hoy.getFullYear()+1 : hoy.getFullYear()); }
 function faltanCampania(p,edad){ const ap=p.aplicadas||{}; return CAL.filter(r=>CAMP[edad].includes(r.id)&&!ap[r.id]&&!["ok","nocorresponde","fuera"].includes(estadoDosis(p,r).e)); }
 function edadCampania(p){ const y=anioNac(p), a=anioCampania(); return y===a-5?5:y===a-11?11:null; }
-function faltaAlumno(p){ const e=edadCampania(p); return resumen(p).faltan>0 || (e?faltanCampania(p,e).length>0:false); }
+function filaAlumno(p,c){
+  const ed=edadCampania(p); const fc=ed?faltanCampania(p,ed):[]; const ap=p.aplicadas||{}; const r=resumen(p);
+  const est=p.esquema==="completo"?["ok","Esquema completo"]:p.esquema==="incompleto"?["bad","Faltan"+(p.faltanTxt?": "+p.faltanTxt:"")]:r.faltan?["bad","Le faltan "+r.faltan]:["ok","Al día"];
+  const au=(p.autorizacion||{}).estado; const fotos=(S.adjuntos||[]).filter(a=>a.pacienteId===p.id).length;
+  return el("button",{class:"row",onclick:()=>formAlumno(p.id)},el("div",{class:"main"},
+    el("div",{class:"name"},nombreCompleto(p)),
+    el("div",{class:"small muted"},[p.dni&&"DNI "+p.dni,p.nac?fmt(p.nac)+" ("+edadTexto(edadMeses(p.nac))+")":"sin fecha de nac.",p.domicilio,p.barrio&&"B° "+p.barrio,p.telefono&&"Tel. "+p.telefono,p.tutor&&"Tutor: "+p.tutor].filter(Boolean).join(" · ")),
+    el("div",{class:"chips"},el("span",{class:"chip "+est[0]},est[1]),
+      ed?CAL.filter(x=>CAMP[ed].includes(x.id)).map(x=>el("span",{class:"chip "+(ap[x.id]?"ok":"warn")},(ap[x.id]?"✓ ":"✗ ")+x.vac.split(" (")[0])):null,
+      el("span",{class:"chip "+(au==="si"?"ok":au==="no"?"bad":"")},au==="si"?"Autorizó":au==="no"?"No autorizó":"Autorización pendiente"),fotos?el("span",{class:"chip ex"},"📷 "+fotos):null,
+      el("span",{class:"chip "+(p.verif?"ex":"")},p.verif||"Sin revisar carnet"))),
+    el("span",{class:"badge "+(est[0]==="ok"?"ok":"bad")},est[0]==="ok"?"✓":(fc.length||r.faltan||"!")));
+}
+function faltaAlumno(p){ if(p.esquema==="completo") return false; if(p.esquema==="incompleto") return true; const e=edadCampania(p); return resumen(p).faltan>0 || (e?faltanCampania(p,e).length>0:false); }
 
 function vEscuelas(v){
   const docs=S.pacientes.filter(p=>p.docente&&p.escuela!==undefined);
   v.append(el("div",{class:"toolbar"},el("h2",{style:"flex:1"},"Escuelas")));
+  v.append(barraRapida({escuela:ESC.escuela}));
   v.append(el("div",{class:"toolbar"},
-    el("button",{class:"btn",onclick:()=>cargarLista(ESC.escuela||"")},"+ Cargar lista de alumnos"),
+    el("button",{class:"btn",onclick:()=>formAlumno(null,ESC.escuela)},"+ Alumno"),
+    el("button",{class:"btn ghost",onclick:()=>cargarLista(ESC.escuela||"")},"+ Lista de alumnos (pegar)"),
     el("button",{class:"btn ghost",onclick:()=>formDocente(null)},"+ Docente"),
-    el("button",{class:"btn ghost",onclick:()=>formAdjuntar(ESC.escuela,"",true)},"📷 Foto de planilla"),
-    el("label",{class:"btn ghost"},"Importar Excel",el("input",{type:"file",id:"esc-import",accept:".xlsx,.xls,.csv,.txt",hidden:true,onchange:e=>{ if(e.target.files[0]){ IMPORT_FORZAR={escuela:ESC.escuela}; leerArchivo(e.target.files[0]); } e.target.value=""; }}))));
+    el("button",{class:"btn ghost",onclick:()=>formAdjuntar(ESC.escuela,"",false)},"Subir planilla PDF")));
   avisoEjemplos(v);
   // Campaña del año
   const A=anioCampania();
@@ -1176,9 +1348,9 @@ function vEscuelas(v){
     el("div",{class:"toolbar"},el("h3",{style:"flex:1"},"Campaña escolar"),el("select",{id:"esc-anio",onchange:e=>{ESC.anio=+e.target.value; render();}},[hoy.getFullYear(),hoy.getFullYear()+1].map(y=>el("option",{value:y,selected:y===A},"Año "+y)))),
     el("div",{class:"stats"},camp.map(c=>el("button",{class:"stat",style:"cursor:pointer;text-align:left",onclick:()=>{ESC.vista="alumnos";ESC.cohorte=String(A-c.ed);ESC.estado="faltan";render();}},
       el("b",{},c.f.length+" de "+c.l.length),el("span",{},(c.ed===5?"Ingreso escolar":"11 años")+": nacidos en "+(A-c.ed)+" a los que les falta vacunar")))),
-    el("p",{class:"small muted"},"Ingreso escolar (nacidos en "+(A-5)+"): triple viral, triple bacteriana (DTP), IPV y varicela. 11 años (nacidos en "+(A-11)+"): dTpa, VPH y meningococo. Tocá un número para ver la lista con nombres.")));
+    el("p",{class:"small muted"},el("b",{},"Ingreso escolar, 4 vacunas")," (nacidos en "+(A-5)+"): triple viral, triple bacteriana (DTP), IPV y varicela. ",el("b",{},"11 años, 3 vacunas")," (nacidos en "+(A-11)+"): dTpa, VPH y meningococo. Tocá un número para ver la lista con nombres. En la ficha de cada chico, «Vacunar varias juntas» las carga todas en un paso.")));
   // Avisos
-  const pendTrans=(S.adjuntos||[]).filter(a=>!a.transcripta).length, docInc=docs.filter(p=>p.esquema==="incompleto"||(!p.esquema&&resumen(p).faltan)).length, sinNac=alumnos.filter(p=>!p.nac).length, sinVer=alumnos.filter(p=>!p.verif).length;
+  const pendTrans=(S.adjuntos||[]).filter(a=>!a.transcripta&&!a.pacienteId).length, docInc=docs.filter(p=>p.esquema==="incompleto"||(!p.esquema&&resumen(p).faltan)).length, sinNac=alumnos.filter(p=>!p.nac).length, sinVer=alumnos.filter(p=>!p.verif).length;
   const avisos=[pendTrans&&[pendTrans+(pendTrans===1?" planilla (foto o PDF) sin pasar a la app":" planillas (fotos o PDF) sin pasar a la app"),"planillas"],docInc&&[docInc+" docentes con esquema incompleto","docentes"],sinNac&&[sinNac+" alumnos sin fecha de nacimiento (no se puede calcular qué les falta)","alumnos"],sinVer&&alumnos.length&&[sinVer+" alumnos sin revisar carnet o sistema","alumnos"]].filter(Boolean);
   if(avisos.length) v.append(el("div",{class:"card"},el("h3",{},"Avisos"),el("div",{class:"chips"},avisos.map(([t,vi])=>el("button",{class:"chip warn",style:"border:0;cursor:pointer",onclick:()=>{ESC.vista=vi;render();}},t)))));
   // Sub-pestañas
@@ -1215,7 +1387,8 @@ function vEscuelas(v){
         el("div",{class:"bar-cob",style:"margin-top:6px","aria-hidden":"true"},el("span",{style:"width:"+pc+"%"})),
         ff.length? el("div",{class:"small",style:"margin-top:8px"},el("b",{},"Faltan vacunar: "),ff.map(p=>{ const ed=edadCampania(p); const fc=ed?faltanCampania(p,ed):[]; return nombreCompleto(p)+(fc.length?" ("+fc.map(x=>x.vac.split(" (")[0]).join(", ")+")":""); }).join(" · ")):null,
         el("div",{class:"toolbar",style:"margin-top:8px"},el("button",{class:"btn ghost sm",onclick:()=>cargarLista(e,c)},"+ Alumnos a este curso"),el("button",{class:"btn ghost sm",onclick:()=>formAdjuntar(e,c,true)},"📷 Foto de la lista")),
-        el("div",{class:"list",style:"margin-top:8px"},al.map(p=>filaPaciente(p,[c,p.verif].filter(Boolean).join(" · "))))));
+        el("div",{class:"chips",style:"margin-top:8px"},el("span",{class:"chip ok"},al.filter(p=>(p.autorizacion||{}).estado==="si").length+" autorizados"),el("span",{class:"chip bad"},al.filter(p=>(p.autorizacion||{}).estado==="no").length+" no autorizaron"),el("span",{class:"chip"},al.filter(p=>!(p.autorizacion||{}).estado||(p.autorizacion||{}).estado==="pendiente").length+" sin autorización")),
+        el("div",{class:"list",style:"margin-top:8px"},al.map(p=>filaAlumno(p,c)))));
     });
     card.append(el("div",{class:"toolbar"},el("button",{class:"btn sm",onclick:()=>cargarLista(e,"")},"+ Agregar curso"),
       el("label",{class:"btn ghost sm"},"Importar Excel a esta escuela",el("input",{type:"file",accept:".xlsx,.xls,.csv,.txt",hidden:true,onchange:ev=>{ if(ev.target.files[0]){ IMPORT_FORZAR={escuela:e}; leerArchivo(ev.target.files[0]); } ev.target.value=""; }})),
@@ -1233,9 +1406,73 @@ function vPlanillas(v){
   const l=el("div",{class:"list"});
   ads.forEach(a=>{ const th=el("div",{style:"width:56px;height:56px;border-radius:10px;background:var(--gray-soft);display:grid;place-items:center;font-weight:800;flex:none;overflow:hidden"},a.tipo==="pdf"?"PDF":"📷");
     if(a.tipo==="foto") ADJ.get(a.id).then(d=>{ if(d) th.replaceChildren(el("img",{src:d,alt:"",style:"width:100%;height:100%;object-fit:cover"})); }).catch(()=>{});
-    l.append(el("button",{class:"row",onclick:()=>verAdjunto(a)},el("div",{class:"main",style:"display:flex;gap:12px;align-items:center"},th,el("div",{},el("div",{class:"name"},[a.escuela,a.curso].filter(Boolean).join(" · ")||a.nombre),el("div",{class:"small muted"},fmt(a.fecha)+" · "+a.nombre+(a.nota?" · "+a.nota:"")))),
-      el("span",{class:"chip "+(a.transcripta?"ok":"warn")},a.transcripta?"Pasada":"Sin pasar"))); });
+    l.append(el("button",{class:"row",onclick:()=>verAdjunto(a)},el("div",{class:"main",style:"display:flex;gap:12px;align-items:center"},th,el("div",{},el("div",{class:"name"},a.pacienteId?(a.nota||"Documento"):([a.escuela,a.curso].filter(Boolean).join(" · ")||a.nombre)),el("div",{class:"small muted"},fmt(a.fecha)+" · "+a.nombre+(a.nota?" · "+a.nota:"")))),
+      el("span",{class:"chip "+(a.pacienteId?"ex":a.transcripta?"ok":"warn")},a.pacienteId?"Ficha":a.transcripta?"Pasada":"Sin pasar"))); });
   v.append(l);
+}
+
+/* ===================== FICHA DE ALUMNO (todos los campos a la vista) ===================== */
+function formAlumno(id,escuela,curso){
+  const existe=id&&S.pacientes.find(x=>x.id===id);
+  const p=existe||{id:uid(),apellido:"",nombre:"",dni:"",nac:"",sexo:"",domicilio:"",barrio:"",telefono:"",tutor:"",escuela:escuela||ESC.escuela||"",curso:curso||"",embarazada:false,aplicadas:{},historial:[],grupos:[],riesgos:[]};
+  const au=p.autorizacion||{};
+  const inp=(k,t,attrs={},req)=>el("label",{},t+(req?" *":""),el("input",Object.assign({id:"al-"+k,value:p[k]||""},attrs)));
+  const fechaIn=el("input",{id:"al-nac",inputmode:"numeric",placeholder:"dd/mm/aaaa",autocomplete:"off",value:p.nac?fmt(p.nac):"",oninput:e=>{ fechaTexto(e.target); pintarVac(); }});
+  const vacBox=el("div",{class:"full"}); const fap=el("input",{type:"date",id:"al-fap",value:iso(hoy),max:iso(hoy)});
+  function pintarVac(){
+    const nac=fechaDesde(fechaIn.value); if(!nac||fechaIn.value.length<10){ vacBox.replaceChildren(el("p",{class:"small muted"},"Escribí la fecha de nacimiento y acá aparecen las vacunas que le corresponden.")); return; }
+    const t=Object.assign({},p,{nac}); const ed=edadCampania(t); const r=resumen(t); const ap=t.aplicadas||{};
+    const reglas=[...new Map([...(ed?CAL.filter(x=>CAMP[ed].includes(x.id)):[]),...r.atrasada,...r.pendiente].map(x=>[x.id,x])).values()];
+    vacBox.replaceChildren(
+      el("div",{class:"small",style:"font-weight:800;margin-bottom:6px"},ed?(ed===5?"Ingreso escolar (nacido en "+anioNac(t)+"): 4 vacunas":"11 años (nacido en "+anioNac(t)+"): 3 vacunas"):"Vacunas que le faltan según su edad ("+edadTexto(edadMeses(nac))+")"),
+      reglas.length? el("div",{class:"list"},reglas.map(x=>{ const st=estadoDosis(t,x); const lab=ap[x.id]?["ok","Aplicada "+fmt(ap[x.id])]:({atrasada:["bad","Falta"],pendiente:["warn","Le toca"],proxima:["","Pronto"],futura:["","En "+anioCampania()]})[st.e]||["",""];
+        return el("div",{class:"dose"},el("label",{class:"check",style:"flex:1"},ap[x.id]?el("span",{style:"width:22px"},"✓"):el("input",{type:"checkbox",class:"al-vac",value:x.id}),el("span",{},el("b",{},x.vac)," · "+x.dosis)),el("span",{class:"chip "+lab[0]},lab[1])); }))
+        : el("p",{class:"small ok-txt"},"No le falta ninguna vacuna según el calendario."),
+      reglas.some(x=>!ap[x.id])? el("div",{class:"toolbar",style:"margin-top:6px"},el("label",{class:"small",style:"display:flex;flex-direction:column"},"Marcá las que le aplicaste. Fecha:",fap)):null);
+  }
+  const form=el("form",{class:"form card"},
+    el("div",{class:"full sec-h"},"1 · Datos principales"),
+    inp("apellido","Apellido",{required:true,autocapitalize:"characters",autocomplete:"off"},true), inp("nombre","Nombre",{required:true,autocomplete:"off"},true),
+    inp("dni","DNI",{inputmode:"numeric",oninput:e=>{e.target.value=e.target.value.replace(/\D/g,"");}},true),
+    el("label",{},"Fecha de nacimiento *",fechaIn), inp("domicilio","Domicilio",{placeholder:"Calle y número"},true),
+    el("div",{class:"full sec-h"},"2 · Más datos (podés completarlos después)"),
+    el("label",{},"Sexo",el("select",{id:"al-sexo"},[["","—"],["F","Femenino"],["M","Masculino"],["X","X / otro"]].map(([k,t])=>el("option",{value:k,selected:p.sexo===k},t)))),
+    inp("barrio","Barrio donde vive"), inp("telefono","Teléfono",{inputmode:"tel"}), inp("tutor","Madre, padre o tutor"),
+    inp("escuela","Escuela",{list:"al-escs"}), el("datalist",{id:"al-escs"},listaEscuelas().map(x=>el("option",{value:x}))), inp("curso","Curso / grado",{placeholder:"Ej.: Sala de 5 A, 6° grado B"}),
+    el("div",{class:"full sec-h"},"3 · Vacunas"),
+    vacBox,
+    el("label",{},"Esquema",el("select",{id:"al-esquema"},[["","Que lo calcule la app"],["completo","Esquema completo"],["incompleto","Faltan vacunas"]].map(([k,t])=>el("option",{value:k,selected:(p.esquema||"")===k},t)))),
+    inp("faltanTxt","¿Qué le falta?",{placeholder:"Opcional"}),
+    el("label",{class:"full"},"¿Cómo se verificó?",el("select",{id:"al-verif"},VERIF.map(x=>el("option",{value:x,selected:(p.verif||"")===x},x||"— elegir —")))),
+    el("div",{class:"full"},el("div",{class:"small muted",style:"margin-bottom:6px"},"Revisalo en el sistema mientras cargás:"),botonesSistemas()),
+    el("div",{class:"full sec-h"},"4 · Autorización de madre, padre o tutor"),
+    el("label",{},"Autorización",el("select",{id:"al-aut"},AUTORIZ.map(([k,t])=>el("option",{value:k,selected:(au.estado||"")===k},t)))),
+    el("label",{},"Quién firmó",el("input",{id:"al-firmo",value:au.firmo||p.tutor||""})),
+    el("div",{class:"full toolbar"},el("label",{class:"btn ghost sm"},"📷 Foto de la autorización",el("input",{type:"file",id:"al-cam",accept:"image/*",capture:"environment",hidden:true,onchange:async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return; const a=await guardarAdjunto(f,p.escuela||"",p.curso||"","Autorización de "+(form.querySelector("#al-apellido").value||"alumno"),{clase:"autorizacion",pacienteId:p.id}); if(a){ const s=form.querySelector("#al-aut"); if(!s.value) s.value="si"; fotoInfo.textContent="✓ Foto guardada ("+((S.adjuntos||[]).filter(x=>x.pacienteId===p.id).length)+")"; } }})),
+      el("span",{class:"small",id:"al-fotoinfo"},(S.adjuntos||[]).some(x=>x.pacienteId===p.id)?"✓ Tiene "+(S.adjuntos||[]).filter(x=>x.pacienteId===p.id).length+" foto(s)":"")),
+    el("label",{class:"full"},"Observaciones",el("input",{id:"al-obs",value:p.obs||""})),
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit",onclick:()=>{otro=false;}},"Guardar alumno"),el("button",{class:"btn ghost",type:"submit",onclick:()=>{otro=true;}},"Guardar y cargar otro"),
+      existe?el("button",{class:"btn ghost",type:"button",onclick:()=>abrirPaciente(p.id)},"Ver ficha completa"):null));
+  const fotoInfo=form.querySelector("#al-fotoinfo"); let otro=false;
+  pintarVac();
+  form.addEventListener("submit",e=>{ e.preventDefault();
+    const g=k=>form.querySelector("#al-"+k).value.trim();
+    const nac=fechaDesde(fechaIn.value); if(!nac||nac>iso(hoy)){ toast("Revisá la fecha de nacimiento (dd/mm/aaaa)"); fechaIn.focus(); return; }
+    let obj=existe; const dni=g("dni");
+    if(!obj&&dni){ obj=S.pacientes.find(x=>x.dni===dni); if(obj){ (S.adjuntos||[]).forEach(a=>{ if(a.pacienteId===p.id) a.pacienteId=obj.id; }); toast("Ese DNI ya estaba cargado: se actualizó su ficha"); } }
+    const nuevo=!obj; if(nuevo) obj=p;
+    ["apellido","nombre","dni","domicilio","sexo","barrio","telefono","tutor","escuela","curso","esquema","faltanTxt","verif","obs"].forEach(k=>obj[k]=g(k));
+    obj.apellido=obj.apellido.toUpperCase(); obj.nac=nac;
+    obj.autorizacion=Object.assign({},obj.autorizacion||{},{estado:g("aut"),firmo:g("firmo")}); if(obj.autorizacion.estado&&!obj.autorizacion.fecha) obj.autorizacion.fecha=iso(hoy);
+    const f=fap.value||iso(hoy); obj.historial=obj.historial||[]; obj.aplicadas=obj.aplicadas||{}; let n=0;
+    form.querySelectorAll(".al-vac:checked").forEach(x=>{ if(obj.historial.some(h=>h.dosis===x.value&&h.fecha===f)) return; const rule=CAL.find(c=>c.id===x.value);
+      obj.historial.push({rid:uid(),dosis:x.value,fecha:f,lote:"",vacunador:S.ajustes.vacunador||"",lugar:"Escuela",establecimiento:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",condicion:condSugerida(obj,rule),obs:obj.escuela?"Vacunación en "+obj.escuela:"",esavi:false}); recalcular(obj,x.value); n++; });
+    if(nuevo) S.pacientes.push(obj); save();
+    toast("Alumno guardado"+(n?" con "+n+(n===1?" vacuna":" vacunas"):""));
+    if(otro){ formAlumno(null,obj.escuela,obj.curso); setTimeout(()=>{ const x=$("#al-apellido"); if(x) x.focus(); },60); }
+    else { cerrarOverlay(); ESC.vista="alumnos"; setTab("escuelas"); }
+  });
+  abrirOverlay(existe?"Alumno":"Nuevo alumno",form);
 }
 
 /* ===================== DOCENTES ===================== */
@@ -1342,6 +1579,9 @@ let downloads=null;
 
 async function guardarArchivo(nombre, data, tipo){
   if(downloads){ try{ await downloads.save({filename:nombre, data}); toast("Archivo listo: "+nombre); return; }catch(e){ if(e&&e.code==="dismissed"||e&&e.code==="declined"){toast("Descarga cancelada");return;} } }
+  // Descarga normal del navegador (app instalada, Chrome, Samsung Internet)
+  try{ const blob=data instanceof Blob?data:new Blob([data],{type:tipo||(/\.csv$/i.test(nombre)?"text/csv;charset=utf-8":/\.json$/i.test(nombre)?"application/json":"text/plain;charset=utf-8")});
+    if(document.querySelector('link[rel="manifest"]')){ const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=nombre; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),4000); toast("Descargando "+nombre); return; } }catch(e){}
   // Alternativa: mostrar el contenido para copiar
   const txt = typeof data==="string"? data : null;
   const box=el("div",{class:"card"},el("p",{},"Este navegador no permite descargar el archivo. Copiá el texto y pegalo en un archivo nuevo."),
@@ -1403,6 +1643,7 @@ function leerArchivo(file){
       let filas;
       if(window.XLSX){
         const wb = esCSV? XLSX.read(rd.result,{type:"string",cellDates:true}) : XLSX.read(new Uint8Array(rd.result),{type:"array",cellDates:true});
+        if(wb.SheetNames.includes("Pacientes")&&wb.SheetNames.includes("Vacunas")){ const hj={}; ["Pacientes","Vacunas","Visitas"].forEach(k=>{ if(wb.Sheets[k]) hj[k]=XLSX.utils.sheet_to_json(wb.Sheets[k],{defval:"",raw:true}); }); IMPORT_FORZAR=null; cerrarOverlay(); importarLibroCompleto(hj,file.name); return; }
         filas=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:"",raw:true});
       } else if(esCSV){
         const lines=rd.result.split(/\r?\n/).filter(l=>l.trim()); const sep=(lines[0].match(/;/g)||[]).length>=(lines[0].match(/,/g)||[]).length?";":",";
@@ -1410,6 +1651,9 @@ function leerArchivo(file){
         filas=lines.slice(1).map(l=>{const c=sp(l),o={}; h.forEach((k,i)=>o[k]=c[i]||""); return o;});
       } else { toast("Para leer Excel hace falta internet la primera vez. Probá con un archivo CSV."); return; }
       if(!filas.length){ toast("La planilla está vacía"); return; }
+      if(filas[0]&&("ID interno" in filas[0])){ importarLibroCompleto({Pacientes:filas},file.name); return; }
+      if(filas[0]&&("Código" in filas[0])&&("Fecha de aplicación" in filas[0])){ importarLibroCompleto({Vacunas:filas},file.name); return; }
+      if(filas[0]&&("ID visita" in filas[0])){ importarLibroCompleto({Visitas:filas},file.name); return; }
       IMPORT={filas, headers:Object.keys(filas[0]), map:mapear(Object.keys(filas[0])), nombre:file.name};
       vistaImport();
     }catch(e){ toast("No pude leer el archivo. ¿Es un Excel o CSV?"); }
@@ -1469,6 +1713,9 @@ function vDatos(v){
     el("div",{class:"toolbar"},el("button",{class:"btn",onclick:abrirStock},"Ver stock y lotes"))));
   cardRegistroDia(v);
   v.append(el("div",{class:"card"},el("h3",{},"Informe mensual"),el("p",{class:"small muted"},"Dosis aplicadas en el mes por vacuna, dosis y grupo de edad. Se puede bajar en Excel."),el("div",{class:"toolbar"},el("button",{class:"btn",onclick:abrirInforme},"Ver informe"))));
+  v.append(el("div",{class:"card"},el("h3",{},"Excel completo (para la PC)"),
+    el("p",{class:"small muted"},"Baja todo en un solo Excel con hojas: Pacientes, Vacunas, Visitas y Docentes. Lo podés abrir y corregir en la PC y después volver a importarlo acá con «Importar»: suma lo nuevo y actualiza lo cambiado, sin borrar nada."),
+    el("div",{class:"toolbar"},el("button",{class:"btn",onclick:exportarTodo},"⬇ Exportar todo"),el("label",{class:"btn ghost"},"⬆ Importar Excel completo",el("input",{type:"file",accept:".xlsx,.xls,.csv",hidden:true,onchange:e=>{ if(e.target.files[0]) leerArchivo(e.target.files[0]); e.target.value=""; }})))));
   v.append(el("div",{class:"card"},el("h3",{},"Importar pacientes desde Excel o CSV"),
     el("p",{class:"small muted"},"La planilla necesita una fila de títulos. Reconozco columnas como Apellido, Nombre, DNI, Fecha de nacimiento, Domicilio, Escuela y Curso. Si la planilla trae Vacuna, Dosis, Fecha de aplicación y Lote (como un reporte de vacunas aplicadas), también carga las vacunas. Si un DNI ya existe, se actualizan sus datos."),
     el("input",{type:"file",id:"f-import",accept:".xlsx,.xls,.csv,.txt",onchange:e=>{ if(e.target.files[0]) leerArchivo(e.target.files[0]); e.target.value=""; }}),
