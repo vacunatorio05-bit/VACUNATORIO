@@ -158,19 +158,70 @@ nav.tabs button[aria-current="true"] svg{background:var(--accent-soft);border-ra
 .cond-grid .check input{width:22px;height:22px;min-height:0;flex:none}
 .fecha-ok{color:var(--ok);font-weight:700}
 @media (prefers-reduced-motion:no-preference){.row,.btn{transition:background .15s}}
+
+/* ===== Diseño v3: panel tipo web ===== */
+header{padding-block:10px;border-radius:0 0 22px 22px}
+header h1{font-size:1.15rem;line-height:1.15}
+.logo-ph{width:52px;height:52px;border:0;background:none;padding:0;cursor:pointer}
+.logo-ph svg{width:52px;height:52px}
+#logo-box{cursor:pointer}
+img#logo-box{width:52px!important;height:52px!important;border-radius:14px!important;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hbtn{background:rgba(255,255,255,.16);border:0;color:#fff;width:42px;height:42px;border-radius:12px;font-size:1.2rem;cursor:pointer;flex:none}
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:20px 18px;color:#fff;background:radial-gradient(120% 140% at 100% 0%,#13b3a6 0%,transparent 55%),linear-gradient(135deg,var(--hdr1),#083a7c);box-shadow:0 10px 30px rgba(10,79,168,.28)}
+.hero::after{content:"";position:absolute;right:-40px;bottom:-60px;width:190px;height:190px;border-radius:50%;border:26px solid rgba(255,255,255,.07)}
+.hero .hrow{display:flex;gap:14px;align-items:center;position:relative;z-index:1}
+.hero .hlogo{width:68px;height:68px;border-radius:18px;background:#fff;flex:none;display:grid;place-items:center;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.hero .hlogo img{width:100%;height:100%;object-fit:contain;padding:4px}
+.hero .hlogo svg{width:68px;height:68px}
+.hero h2{color:#fff;font-size:1.35rem;line-height:1.15}
+.hero p{margin:4px 0 0;opacity:.9;font-size:.92rem}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px;position:relative;z-index:1}
+.kpi{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:10px 12px;text-align:left;color:#fff;font:inherit;cursor:pointer}
+.kpi b{display:block;font-family:var(--f-display);font-size:1.75rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi span{font-size:.8rem;opacity:.92;font-weight:700}
+.kpi.alerta b{color:#ffd27a}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--surface);border:0;border-radius:18px;padding:12px 4px 10px;box-shadow:var(--shadow);font:inherit;font-size:.76rem;font-weight:700;color:var(--ink);cursor:pointer;text-decoration:none;text-align:center;line-height:1.15}
+.tile .ti{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;color:#fff}
+.tile .ti svg{width:24px;height:24px}
+.tile:active{transform:scale(.97)}
+@media (max-width:360px){.tiles{grid-template-columns:repeat(3,1fr)}}
+.logo-cta{display:flex;gap:12px;align-items:center;border:2px dashed var(--accent);background:var(--accent-soft);border-radius:18px;padding:12px 14px}
+.logo-cta svg{width:48px;height:48px;flex:none}
+#splash{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;background:radial-gradient(120% 90% at 100% 0%,#13b3a6 0%,transparent 55%),linear-gradient(150deg,#0a4fa8,#062e63)}
+#splash .slogo{width:110px;height:110px;border-radius:28px;background:#fff;display:grid;place-items:center;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+#splash .slogo img{width:100%;height:100%;object-fit:contain;padding:8px}#splash .slogo svg{width:110px;height:110px}
+#splash h1{font-family:var(--f-display);margin:0;font-size:1.5rem;text-align:center}
+#splash p{margin:0;opacity:.85;text-align:center;padding:0 24px}
+#splash .barra{width:120px;height:4px;border-radius:9px;background:rgba(255,255,255,.2);overflow:hidden}
+#splash .barra i{display:block;height:100%;width:40%;background:#fff;border-radius:9px}
+#splash.fuera{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+  #splash{transition:opacity .45s ease}
+  #splash .barra i{animation:carga 1s ease-in-out infinite}
+  @keyframes carga{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+  main.entra>*{animation:sube .42s cubic-bezier(.2,.7,.2,1) both}
+  main.entra>*:nth-child(2){animation-delay:.04s} main.entra>*:nth-child(3){animation-delay:.08s} main.entra>*:nth-child(4){animation-delay:.12s} main.entra>*:nth-child(5){animation-delay:.16s} main.entra>*:nth-child(n+6){animation-delay:.2s}
+  @keyframes sube{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .tile,.kpi{transition:transform .15s ease,box-shadow .15s ease}
+  .tile:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(12,29,51,.12)}
+  .overlay:not([hidden]){animation:sube .28s ease both}
+}
 </style>
 
 <header>
-  <span id="logo-box" class="logo-ph" title="Logo del centro de salud"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></span>
+  <span id="logo-box" class="logo-ph" title="Logo del centro de salud"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="13" fill="#fff"/><path d="M19 9h10v10h10v10H29v10H19V29H9V19h10z" fill="#0a4fa8"/><text x="24" y="28.5" text-anchor="middle" font-family="Bricolage Grotesque,system-ui,sans-serif" font-weight="800" font-size="11" fill="#fff">41</text></svg></span>
   <div class="htxt"><h1>Vacunatorio Tres Cerritos</h1>
-  <p id="sub">Control de vacunas faltantes · Calendario Nacional</p></div>
+  <p id="sub">Centro de Salud N° 41</p></div>
+  <button id="btn-tema" class="hbtn" type="button" aria-label="Cambiar modo claro u oscuro" title="Modo claro / oscuro">◐</button>
   <button id="btn-instalar" class="btn sm" hidden style="flex-basis:100%;background:#fff;color:#0a4fa8;border-color:#fff">Instalar la app en este celular</button>
 </header>
 
 <main id="view"></main>
+<div id="splash" role="status" aria-label="Cargando"><div class="slogo" id="splash-logo"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="13" fill="#fff"/><path d="M19 9h10v10h10v10H29v10H19V29H9V19h10z" fill="#0a4fa8"/><text x="24" y="28.5" text-anchor="middle" font-family="Bricolage Grotesque,system-ui,sans-serif" font-weight="800" font-size="11" fill="#fff">41</text></svg></div><h1>Vacunatorio Tres Cerritos</h1><p>Centro de Salud N° 41 «Gerónimo Angeletti»</p><div class="barra"><i></i></div></div>
 
 <nav class="tabs" aria-label="Secciones">
-  <button data-tab="pendientes" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>Faltan</button>
+  <button data-tab="pendientes" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Inicio</button>
   <button data-tab="pacientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></svg>Pacientes</button>
   <button data-tab="escuelas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 11.5V16c1.5 1.5 3 2 5 2s3.5-.5 5-2v-4.5"/></svg>Escuelas</button>
   <button data-tab="datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>Registro</button>
@@ -397,9 +448,10 @@ function setTab(t){ TAB=t; document.querySelectorAll("nav.tabs button").forEach(
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
 
 function render(){
-  const v=$("#view"); v.replaceChildren();
+  const v=$("#view"); v.replaceChildren(); v.classList.remove("entra"); void v.offsetWidth; v.classList.add("entra");
   ({pendientes:vPendientes,pacientes:vPacientes,escuelas:vEscuelas,datos:vDatos,visitas:vVisitas,calendario:vCalendario})[TAB](v);
-  $("#sub").textContent = S.pacientes.length+" pacientes en este celular · Calendario Nacional";
+  $("#sub").textContent = "Centro de Salud N° 41 · "+S.pacientes.length+" pacientes";
+  const sp=$("#splash"); if(sp&&!sp.dataset.saliendo){ sp.dataset.saliendo="1"; setTimeout(()=>{ sp.classList.add("fuera"); setTimeout(()=>sp.remove(),600); },Math.max(0,900-performance.now())); }
 }
 function avisoEjemplos(v){
   if(S.pacientes.some(p=>p.ejemplo)) v.append(el("div",{class:"note"},"Estos son pacientes de EJEMPLO para que veas cómo funciona. Cuando cargues los tuyos, borralos desde la pestaña Registro."));
@@ -437,6 +489,34 @@ function vPendientes(v){
     const hit=S.pacientes.filter(p=>(d&&p.dni===d)||(!d&&norm(p.apellido+" "+p.nombre).includes(norm(q))));
     if(hit.length===1) abrirPaciente(hit[0].id); else if(hit.length>1){ filtro=q; setTab("pacientes"); } else { editarPaciente(null,d?{dni:d}:{}); toast("No está cargado: completá sus datos"); } };
   const nPasar=paraPasar().length;
+  // ---- Panel de inicio
+  const L=logoActual(); const fechaLarga=hoy.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+  const hora=new Date().getHours(); const saludo=hora<12?"Buen día":hora<20?"Buenas tardes":"Buenas noches";
+  const A=anioCampania(); const campF=S.pacientes.filter(p=>p.escuela&&!p.docente&&edadCampania(p)&&faltanCampania(p,edadCampania(p)).length).length;
+  const mes=iso(hoy).slice(0,7); let dosisMes=0; S.pacientes.forEach(p=>(p.historial||[]).forEach(h=>{ if(h.fecha&&h.fecha.slice(0,7)===mes) dosisMes++; }));
+  const hl=el("div",{class:"hlogo"}); if(L) hl.append(el("img",{src:L,alt:"Logo del Centro de Salud N° 41"})); else hl.innerHTML=EMBLEMA;
+  v.append(el("section",{class:"hero","aria-label":"Resumen"},
+    el("div",{class:"hrow"},hl,el("div",{},el("h2",{},saludo+(S.ajustes.vacunador?", "+S.ajustes.vacunador.split(" ")[0]:"")),el("p",{},fechaLarga.charAt(0).toUpperCase()+fechaLarga.slice(1)+" · Vacunatorio del CS N° 41"))),
+    el("div",{class:"kpis"},
+      el("button",{class:"kpi"+(atr?" alerta":""),onclick:()=>{filtroPend="todos";document.getElementById("f-pend")?.scrollIntoView({behavior:"smooth"});}},el("b",{},atr),el("span",{},"con vacunas atrasadas")),
+      el("button",{class:"kpi",onclick:()=>setTab("datos")},el("b",{},dosisHoy),el("span",{},"dosis aplicadas hoy ("+dosisMes+" en el mes)")),
+      el("button",{class:"kpi"+(campF?" alerta":""),onclick:()=>{ESC.vista="alumnos";ESC.estado="faltan";setTab("escuelas");}},el("b",{},campF),el("span",{},"alumnos sin vacunar (campaña "+A+")")),
+      el("button",{class:"kpi",onclick:()=>setTab("pacientes")},el("b",{},S.pacientes.filter(p=>!p.ejemplo).length),el("span",{},"pacientes en el padrón")))));
+  if(!L) v.append(el("button",{class:"logo-cta",style:"font:inherit;color:var(--ink);text-align:left;cursor:pointer",onclick:pedirLogo},el("div",{},el("b",{},"Subí el logo del centro de salud"),el("div",{class:"small muted"},"Tocá acá y elegí la imagen del logo del CS N° 41. Aparece arriba, al abrir la app y en el carnet."))));
+  const IC={vac:'<path d="M14 4l6 6M17 7l-9 9-3 1 1-3 9-9M10 10l4 4M4 20l2-2"/>',per:'<circle cx="10" cy="8" r="3.5"/><path d="M3 20c.8-3.6 3.6-5.5 7-5.5"/><path d="M18 14v6M15 17h6"/>',esc:'<path d="M3 9l9-5 9 5-9 5z"/><path d="M7 11.5V16c1.5 1.5 3 2 5 2s3.5-.5 5-2v-4.5"/>',map:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',xls:'<path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/>',ext:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/>',pas:'<path d="M4 12a8 8 0 0 1 14-5l2-2v6h-6l2-2a5 5 0 1 0 1 6"/>'};
+  const ico=(k,bg)=>{ const sp=el("span",{class:"ti",style:"background:"+bg}); sp.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+IC[k]+'</svg>'; return sp; };
+  const tile=(k,bg,t,fn)=>el("button",{class:"tile",onclick:fn},ico(k,bg),t);
+  const tileA=(k,bg,t,u)=>el("a",{class:"tile",href:u,target:"_blank",rel:"noopener noreferrer"},ico(k,bg),t);
+  const camIn=el("input",{type:"file",accept:"image/*",capture:"environment",hidden:true,onchange:async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return; const a=await guardarAdjunto(f,"","","Foto desde el inicio"); if(a){ ESC.vista="planillas"; setTab("escuelas"); toast("Foto guardada en Planillas"); } }});
+  v.append(el("div",{class:"tiles"},
+    tile("vac","linear-gradient(135deg,#0b5fc4,#0a4fa8)","Registrar vacuna",()=>flujoRegistro()),
+    tile("per","linear-gradient(135deg,#7a3fd1,#5b2bb0)","Nuevo paciente",()=>editarPaciente(null)),
+    tile("esc","linear-gradient(135deg,#0e9f8f,#0b7a6e)","Alumno",()=>formAlumno(null)),
+    tile("map","linear-gradient(135deg,#e0532c,#bf3b18)","Visita",()=>nuevaVisita(null)),
+    tile("cam","linear-gradient(135deg,#2a7bd6,#1a5fae)","Cámara",()=>camIn.click()),
+    tile("xls","linear-gradient(135deg,#1fa356,#0e7a37)","Exportar Excel",exportarTodo),
+    tileA("ext","linear-gradient(135deg,#334a66,#1d2f45)","SISA NomiVac",ENLACES_FIJOS[0][1]),
+    tileA("ext","linear-gradient(135deg,#0b8fb0,#086f8a)","Acuario",ENLACES_FIJOS[1][1]),camIn));
   const accion=(ic,col,tit,sub,fn)=>el("button",{class:"row",onclick:fn},el("span",{class:"qa-ic",style:"background:"+col},ic),el("div",{class:"main"},el("div",{class:"name"},tit),el("div",{class:"small muted"},sub)),el("span",{class:"muted",style:"font-size:1.3rem"},"›"));
   v.append(el("div",{class:"list"},
     accion("+","linear-gradient(135deg,var(--hdr1),var(--hdr2))","Registrar aplicación","Buscar por DNI → vacuna → confirmar",()=>flujoRegistro()),
@@ -757,7 +837,7 @@ async function carnetPDF(p){
   const doc=new window.jspdf.jsPDF({unit:"mm",format:"a4"}); const W=210; let y=18;
   doc.setFillColor(13,107,110); doc.rect(0,0,W,12,"F"); doc.setTextColor(255); doc.setFontSize(11); doc.text("Constancia de vacunación",14,8);
   doc.setFontSize(8); doc.text(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",W-14,8,{align:"right"});
-  if(S.ajustes.logo){ try{ doc.addImage(S.ajustes.logo,"PNG",W-34,15,20,20); }catch(e){} }
+  if(logoActual()){ try{ doc.addImage(logoActual(),"PNG",W-34,15,20,20); }catch(e){} }
   doc.setTextColor(20); doc.setFontSize(14); doc.text(((p.apellido||"").toUpperCase()+", "+(p.nombre||"")),14,y+4); y+=10;
   doc.setFontSize(9); doc.text([(p.tipodoc||"DNI")+": "+(p.dni||"—"),"Nacimiento: "+fmt(p.nac)+"   Edad: "+edadTexto(edadMeses(p.nac)),"Domicilio: "+(p.domicilio||"—")],14,y); y+=16;
   const cols=[14,40,100,140,170]; const head=["Fecha","Vacuna","Dosis","Lote","Vacunador/a"];
@@ -805,12 +885,12 @@ function unirCopia(d){
     (l.movs||[]).forEach(m=>{ if(!ex.movs.some(x=>x.tipo===m.tipo&&x.cant===m.cant&&x.fecha===m.fecha&&(x.motivo||"")===(m.motivo||""))) ex.movs.push(Object.assign({},m)); });
     if(!ex.vence&&l.vence) ex.vence=l.vence; if(l.desde&&(!ex.desde||l.desde<ex.desde)) ex.desde=l.desde; });
   S.adjuntos=S.adjuntos||[]; (d.adjuntos||[]).forEach(a=>{ if(!S.adjuntos.some(x=>x.id===a.id)){ S.adjuntos.push(Object.assign({},a)); res.adjuntos=(res.adjuntos||0)+1; } });
-  guardarArchivosDeCopia(d);
+  guardarArchivosDeCopia(d); if(d.logo&&!S.ajustes.logo){ S.ajustes.logo=d.logo; setTimeout(pintarLogo,0); }
   save(); return res;
 }
 async function guardarArchivosDeCopia(d){ const ar=d.archivos||{}; for(const [id,data] of Object.entries(ar)){ try{ if(!(await ADJ.get(id))) await ADJ.put(id,data); }catch(e){} } }
 async function armarCopia(){ const archivos={}; for(const a of (S.adjuntos||[])){ try{ const x=await ADJ.get(a.id); if(x) archivos[a.id]=x; }catch(e){} }
-  return JSON.stringify({version:3,fecha:iso(hoy),pacientes:S.pacientes,visitas:S.visitas||[],lotes:S.lotes||[],adjuntos:S.adjuntos||[],enlaces:S.ajustes.enlaces||null,archivos}); }
+  return JSON.stringify({version:3,fecha:iso(hoy),pacientes:S.pacientes,visitas:S.visitas||[],lotes:S.lotes||[],adjuntos:S.adjuntos||[],logo:S.ajustes.logo||null,archivos}); }
 
 
 /* ===================== FLUJO RÁPIDO: REGISTRAR APLICACIÓN ===================== */
@@ -1736,7 +1816,7 @@ function vDatos(v){
     el("div",{class:"toolbar"},
       el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("copia_vacunatorio_"+iso(hoy)+".json",await armarCopia()); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
       el("label",{class:"btn ghost",style:"display:inline-block"},"Unir copia de otro celular",el("input",{type:"file",id:"f-unir",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; const r=unirCopia(d); render(); toast("Unido: "+r.nuevos+" pacientes nuevos, "+r.actualizados+" actualizados, "+r.vacunas+" vacunas, "+r.visitas+" visitas, "+r.lotes+" lotes, "+(r.adjuntos||0)+" planillas"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); e.target.value=""; }})),
-      el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; if(Array.isArray(d.lotes)) S.lotes=d.lotes; if(Array.isArray(d.adjuntos)){ S.adjuntos=d.adjuntos; guardarArchivosDeCopia(d); } if(d.enlaces) S.ajustes.enlaces=d.enlaces; save(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
+      el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; if(Array.isArray(d.lotes)) S.lotes=d.lotes; if(Array.isArray(d.adjuntos)){ S.adjuntos=d.adjuntos; guardarArchivosDeCopia(d); } if(d.logo) S.ajustes.logo=d.logo; save(); pintarLogo(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
   const nEj=S.pacientes.filter(p=>p.ejemplo).length;
   if(nEj) v.append(el("div",{class:"card"},el("h3",{},"Pacientes de ejemplo"),el("p",{class:"small muted"},"Hay "+nEj+" pacientes inventados para mostrar la app."),el("div",{class:"toolbar"},el("button",{class:"btn danger",onclick:()=>{S.pacientes=S.pacientes.filter(p=>!p.ejemplo); S.visitas=(S.visitas||[]).filter(x=>!x.ejemplo); save(); render(); toast("Ejemplos borrados");}},"Borrar ejemplos"))));
   // PIN
@@ -1748,8 +1828,8 @@ function vDatos(v){
       el("button",{class:"btn",onclick:async()=>{ const v=pinIn.value.trim(); if(!/^\d{4,8}$/.test(v)){toast("El PIN tiene que tener de 4 a 8 números");return;} S.pinHash=await hash(v); save(); render(); toast("PIN guardado"); }},S.pinHash?"Cambiar PIN":"Poner PIN"),
       S.pinHash? el("button",{class:"btn ghost",onclick:()=>{S.pinHash=null; save(); render(); toast("PIN quitado");}},"Quitar PIN"):null)));
   v.append(el("div",{class:"card"},el("h3",{},"Logo del centro de salud"),
-    S.ajustes.logo?el("img",{src:S.ajustes.logo,alt:"Logo actual",style:"max-width:120px;max-height:120px;border-radius:12px;background:#fff;padding:4px;border:1px solid var(--line)"}):el("p",{class:"small muted"},"Subí una foto o imagen del logo. Aparece arriba en la app y en el carnet PDF."),
-    el("div",{class:"toolbar"},el("label",{class:"btn"},S.ajustes.logo?"Cambiar logo":"Subir logo",el("input",{type:"file",id:"f-logo",accept:"image/*",hidden:true,onchange:e=>{ if(e.target.files[0]) subirLogo(e.target.files[0]); e.target.value=""; }})),
+    logoActual()?el("img",{src:logoActual(),alt:"Logo actual",style:"max-width:120px;max-height:120px;border-radius:12px;background:#fff;padding:4px;border:1px solid var(--line)"}):el("p",{class:"small muted"},"Subí una foto o imagen del logo. Aparece arriba en la app y en el carnet PDF."),
+    el("div",{class:"toolbar"},el("label",{class:"btn"},logoActual()?"Cambiar logo":"Subir logo",el("input",{type:"file",id:"f-logo",accept:"image/*",hidden:true,onchange:e=>{ if(e.target.files[0]) subirLogo(e.target.files[0]); e.target.value=""; }})),
       S.ajustes.logo?el("button",{class:"btn ghost",onclick:()=>{ delete S.ajustes.logo; save(); pintarLogo(); render(); }},"Quitar logo"):null)));
   if("Notification" in window){ const st=Notification.permission;
     v.append(el("div",{class:"card"},el("h3",{},"Avisos en el celular"),
@@ -1779,9 +1859,14 @@ window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); PROMPT_IN
 window.addEventListener("appinstalled",()=>{ PROMPT_INSTALAR=null; const b=document.getElementById("btn-instalar"); if(b) b.hidden=true; toast("App instalada. Buscala en la pantalla de inicio."); });
 document.getElementById("btn-instalar").addEventListener("click",async()=>{ if(!PROMPT_INSTALAR){ setTab("datos"); return; } PROMPT_INSTALAR.prompt(); try{ await PROMPT_INSTALAR.userChoice; }catch(e){} PROMPT_INSTALAR=null; document.getElementById("btn-instalar").hidden=true; });
 const INSTALADA = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
-function pintarLogo(){ const box=document.getElementById("logo-box"); if(!box) return; const L=S.ajustes&&S.ajustes.logo;
+const LOGO_DEFECTO=null; // la versión privada lo trae cargado; la pública lo pide (el logo no va al repositorio)
+const EMBLEMA=`<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="13" fill="#fff"/><path d="M19 9h10v10h10v10H29v10H19V29H9V19h10z" fill="#0a4fa8"/><text x="24" y="28.5" text-anchor="middle" font-family="Bricolage Grotesque,system-ui,sans-serif" font-weight="800" font-size="11" fill="#fff">41</text></svg>`;
+const logoActual=()=>(S.ajustes&&S.ajustes.logo)||LOGO_DEFECTO;
+function pedirLogo(){ const i=el("input",{type:"file",accept:"image/*",hidden:true,onchange:e=>{ if(e.target.files[0]) subirLogo(e.target.files[0]); i.remove(); }}); document.body.append(i); i.click(); }
+function pintarLogo(){ const L0=logoActual(); const sl=document.getElementById("splash-logo"); if(sl&&L0) sl.replaceChildren(el("img",{src:L0,alt:"Logo del centro de salud"}));
+  const box=document.getElementById("logo-box"); if(!box) return; const L=L0;
   if(L){ const img=el("img",{id:"logo-hdr",src:L,alt:"Logo"}); box.replaceWith(img); img.id="logo-box"; img.className=""; img.style.cssText="width:44px;height:44px;border-radius:12px;background:#fff;object-fit:contain;padding:3px;flex:none"; }
-  else if(box.tagName==="IMG"){ const ph=el("span",{id:"logo-box",class:"logo-ph"}); ph.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>'; box.replaceWith(ph); } }
+  else if(box.tagName==="IMG"){ const ph=el("span",{id:"logo-box",class:"logo-ph"}); ph.innerHTML=EMBLEMA; box.replaceWith(ph); } }
 function subirLogo(file){ const rd=new FileReader(); rd.onload=()=>{ const im=new Image(); im.onload=()=>{ const m=256, k=Math.min(1,m/Math.max(im.width,im.height)); const cv=document.createElement("canvas"); cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k);
   const cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(im,0,0,cv.width,cv.height); S.ajustes.logo=cv.toDataURL("image/png"); save(); pintarLogo(); render(); toast("Logo guardado"); }; im.onerror=()=>toast("No pude abrir esa imagen"); im.src=rd.result; }; rd.readAsDataURL(file); }
 async function avisoDiario(){
@@ -1796,17 +1881,20 @@ async function avisoDiario(){
     if(reg) reg.showNotification("Vacunatorio Tres Cerritos",{body:txt,icon:"icon-192.png",tag:"atrasados"}); else new Notification("Vacunatorio Tres Cerritos",{body:txt});
   }catch(e){}
 }
+function aplicarTema(){ const t=S.ajustes.tema||"auto"; if(t==="auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme",t); const b=$("#btn-tema"); if(b){ b.textContent=t==="dark"?"☾":t==="light"?"☀":"◐"; b.title="Modo: "+({auto:"automático",light:"claro",dark:"oscuro"})[t]; } }
 async function iniciar(){
   try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   setTimeout(pintarLogo,0);
-  const habia=load();
+  const habia=load(); aplicarTema();
+  $("#btn-tema").onclick=()=>{ const o=["auto","light","dark"]; S.ajustes.tema=o[(o.indexOf(S.ajustes.tema||"auto")+1)%3]; save(true); aplicarTema(); toast("Modo "+({auto:"automático (como el celular)",light:"claro",dark:"oscuro"})[S.ajustes.tema]); };
+  document.addEventListener("click",e=>{ if(e.target.closest&&e.target.closest("#logo-box")){ if(logoActual()) setTab("datos"); else pedirLogo(); } });
   if(!habia){ S.pacientes=ejemplos(); const d=(n)=>{const x=new Date(hoy); x.setDate(x.getDate()-n); return iso(x);};
     S.visitas=[{id:uid(),fecha:d(1),hora:"10:15",lat:-24.7698,lng:-65.3941,direccion:"EJEMPLO: Los Ceibos 100",resultado:"vacunado",personas:"EJEMPLO Ríos, Mateo",vacunas:"Antigripal",vacunador:"",obs:"",ejemplo:true},
       {id:uid(),fecha:d(1),hora:"10:40",lat:-24.7712,lng:-65.3918,direccion:"EJEMPLO: Los Jazmines 250",resultado:"nadie",personas:"",vacunas:"",vacunador:"",obs:"Dejar aviso",ejemplo:true},
       {id:uid(),fecha:d(3),hora:"11:05",lat:-24.7689,lng:-65.3925,direccion:"EJEMPLO: Las Rosas 75",resultado:"volver",personas:"EJEMPLO Vargas, Rosa",vacunas:"",vacunador:"",obs:"Volver el martes",ejemplo:true}];
     save(true); }
   if(S.pinHash){
-    const lk=$("#lock"); lk.hidden=false; const inp=$("#lock-pin"); setTimeout(()=>inp.focus(),50);
+    const sp=$("#splash"); if(sp) sp.remove(); const lk=$("#lock"); lk.hidden=false; const inp=$("#lock-pin"); setTimeout(()=>inp.focus(),50);
     const probar=async()=>{ if(await hash(inp.value)===S.pinHash){ lk.hidden=true; render(); } else { $("#lock-msg").textContent="PIN incorrecto"; inp.value=""; } };
     $("#lock-ok").onclick=probar; inp.onkeydown=e=>{ if(e.key==="Enter") probar(); };
   } else render();
