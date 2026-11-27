@@ -1,8 +1,9 @@
 // Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
-const APP="vacunatorio-2b76657169", TILES="mapa-tiles-v1", MAX_TILES=3000;
+const APP="vacunatorio-347835df73", TILES="mapa-tiles-v1", MAX_TILES=3000;
 const ARCHIVOS=["./","index.html","manifest.json","icon-192.png","icon-512.png","icon-maskable-512.png",
  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
+ "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"];
 self.addEventListener("install",e=>{ e.waitUntil(caches.open(APP).then(c=>Promise.all(ARCHIVOS.map(u=>c.add(u).catch(()=>{}))))); self.skipWaiting(); });
 self.addEventListener("activate",e=>{ e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==APP&&k!==TILES).map(k=>caches.delete(k))))); self.clients.claim(); });
