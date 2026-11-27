@@ -98,6 +98,9 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:40;max-width:90vw}
 details summary{cursor:pointer;font-weight:700}
 .mapa{height:min(55vh,420px);border-radius:12px;border:1px solid var(--line);overflow:hidden;background:var(--gray-soft);position:relative;z-index:1}
+.pin-pac{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font:700 13px/1 sans-serif;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pin-pac.bad{background:#b42318}.pin-pac.warn{background:#c98a00}
+.bar-cob{height:8px;border-radius:99px;background:var(--bad-soft);overflow:hidden}.bar-cob>span{display:block;height:100%;background:var(--ok)}
 .mapa-off{padding:24px;color:var(--muted);text-align:center}
 .leaflet-popup-content{color:#15302f}
 @media (prefers-reduced-motion:no-preference){.row,.btn{transition:background .15s}}
@@ -289,6 +292,17 @@ function vPendientes(v){
   const atr=res.filter(x=>x.r.atrasada.length).length;
   const pen=res.filter(x=>!x.r.atrasada.length&&x.r.pendiente.length).length;
   const al=res.filter(x=>!x.r.faltan).length;
+  const hoyISO=iso(hoy); let dosisHoy=0; S.pacientes.forEach(p=>(p.historial||[]).forEach(h=>{ if(h.fecha===hoyISO) dosisHoy++; }));
+  const visHoy=(S.visitas||[]).filter(x=>x.fecha===hoyISO).length;
+  const volver=(S.visitas||[]).filter(x=>x.resultado==="volver").length;
+  const dniIn=el("input",{id:"buscar-dni",type:"search",inputmode:"numeric",placeholder:"Buscar por DNI o apellido",autocomplete:"off"});
+  const buscar=e=>{ e.preventDefault(); const q=dniIn.value.trim().toLowerCase(); if(!q) return; const d=q.replace(/\D/g,"");
+    const hit=S.pacientes.filter(p=>(d&&p.dni===d)||(!d&&(p.apellido+" "+p.nombre).toLowerCase().includes(q)));
+    if(hit.length===1) abrirPaciente(hit[0].id); else if(hit.length>1){ filtro=q; setTab("pacientes"); } else { const n={id:null}; editarPaciente(null); setTimeout(()=>{ const x=document.querySelector("#p-dni"); if(x&&d) x.value=d; },0); toast("No está cargado: completá sus datos"); } };
+  v.append(el("form",{class:"card",onsubmit:buscar},el("h3",{},"Buscar paciente"),el("div",{class:"toolbar",style:"flex-wrap:nowrap"},dniIn,el("button",{class:"btn",type:"submit"},"Buscar"))));
+  v.append(el("div",{class:"chips"},el("span",{class:"chip ex"},"Hoy: "+dosisHoy+" dosis aplicadas"),el("span",{class:"chip ex"},visHoy+" visitas"),volver?el("button",{class:"chip warn",style:"border:0;cursor:pointer",onclick:()=>setTab("visitas")},volver+" domicilios para volver"):null));
+  const reales=S.pacientes.filter(p=>!p.ejemplo).length; const dias=S.ultimaCopia?Math.floor((hoy-parseISO(S.ultimaCopia))/86400000):null;
+  if(reales && (dias==null||dias>=7)) v.append(el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},(dias==null?"Todavía no hiciste ninguna copia de seguridad. ":"Tu última copia de seguridad es de hace "+dias+" días. "),el("button",{class:"btn sm",onclick:()=>setTab("datos")},"Hacer copia ahora")));
   v.append(el("h2",{},"¿A quién le faltan vacunas?"));
   avisoEjemplos(v);
   v.append(el("div",{class:"stats"},
@@ -367,6 +381,8 @@ function abrirPaciente(id){
   cuerpo.append(el("div",{class:"toolbar"},
     el("button",{class:"btn ghost",onclick:()=>editarPaciente(p.id)},"Editar datos"),
     el("button",{class:"btn ghost",onclick:()=>nuevaVisita(null,p)},"Registrar visita"),
+    p.telefono&&r.faltan? el("a",{class:"btn ghost",href:linkWhatsApp(p,r),target:"_blank",rel:"noopener"},"Avisar por WhatsApp"):null,
+    p.lat!=null? el("a",{class:"btn ghost",href:"https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lng,target:"_blank",rel:"noopener"},"Cómo llegar"):null,
     el("button",{class:"btn danger",onclick:()=>confirmarBorrar(p)},"Borrar paciente")));
   abrirOverlay(nombreCompleto(p), cuerpo);
 }
@@ -400,6 +416,14 @@ function editarPaciente(id){
     save(); toast("Guardado"); abrirPaciente(p.id);
   });
   abrirOverlay(id?"Editar paciente":"Nuevo paciente",form);
+}
+
+function linkWhatsApp(p,r){
+  let t=String(p.telefono).replace(/\D/g,""); if(t.startsWith("0")) t=t.slice(1); if(t.startsWith("54")) t=t.slice(2); if(t.startsWith("9")) t=t.slice(1);
+  t=t.replace(/^(\d{3,4})15/,"$1"); // quita el 15 del celular
+  const lista=[...r.atrasada,...r.pendiente].map(x=>x.vac+" ("+x.dosis+")").join(", ");
+  const msg="Hola, le escribimos del Vacunatorio del "+(S.ajustes.establecimiento||"Centro de Salud Tres Cerritos")+". "+(p.nombre||"")+" "+(p.apellido||"")+" tiene vacunas pendientes: "+lista+". Puede acercarse con el carnet y el DNI. ¡Gracias!";
+  return "https://wa.me/549"+t+"?text="+encodeURIComponent(msg);
 }
 
 /* ===================== REGISTRO DE APLICACIONES ===================== */
@@ -483,13 +507,16 @@ function vVisitas(v){
       MAPA=L.map(caja).setView(CENTRO,15);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(MAPA);
       const pts=[];
+      S.pacientes.forEach(p=>{ if(p.lat==null) return; const r=resumen(p); if(!r.faltan) return; pts.push([p.lat,p.lng]);
+        const div=document.createElement("div"); div.append(el("b",{},nombreCompleto(p)),el("div",{},"Le faltan "+r.faltan+" vacunas"),el("button",{class:"btn sm",style:"margin-top:6px",onclick:()=>abrirPaciente(p.id)},"Ver ficha"));
+        L.marker([p.lat,p.lng],{icon:L.divIcon({className:"",html:'<div class="pin-pac '+(r.atrasada.length?"bad":"warn")+'">'+r.faltan+'</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(MAPA).bindPopup(div); });
       lista.forEach(x=>{ if(x.lat==null) return; const r=resInfo(x.resultado); pts.push([x.lat,x.lng]);
         const div=document.createElement("div"); div.append(el("b",{},fmt(x.fecha)+" "+(x.hora||"")),el("br"),r[1],x.direccion?el("div",{},x.direccion):null,x.personas?el("div",{},x.personas):null);
         L.circleMarker([x.lat,x.lng],{radius:9,color:"#fff",weight:2,fillColor:r[2],fillOpacity:.95}).addTo(MAPA).bindPopup(div); });
       if(pts.length>1) MAPA.fitBounds(pts,{padding:[30,30],maxZoom:17}); else if(pts.length) MAPA.setView(pts[0],17);
     },0);
   } else caja.append(el("div",{class:"mapa-off"},"El mapa y el GPS funcionan en la versión instalable de la app. Acá igual podés anotar las visitas."));
-  v.append(el("div",{class:"chips"},RESULTADOS.map(r=>el("span",{class:"chip"},el("span",{style:"display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;background:"+r[2]}),r[1]))));
+  v.append(el("div",{class:"chips"},RESULTADOS.map(r=>el("span",{class:"chip"},el("span",{style:"display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;background:"+r[2]}),r[1])),el("span",{class:"chip bad"},"■ Paciente con vacunas atrasadas (número = cuántas faltan)")));
   if(!lista.length) v.append(el("div",{class:"card"},el("p",{},"Todavía no hay visitas en este período. Tocá «Nueva visita» cuando estés en el domicilio: se guarda la ubicación del GPS.")));
   else {
     v.append(el("div",{class:"list"},lista.map(x=>{ const r=resInfo(x.resultado); return el("button",{class:"row",onclick:()=>nuevaVisita(x)},
@@ -528,6 +555,8 @@ function nuevaVisita(x, paciente){
   form.addEventListener("submit",e=>{ e.preventDefault();
     ["fecha","hora","direccion","personas","vacunas","vacunador","obs","resultado"].forEach(k=>vis[k]=form.querySelector("#v-"+k).value.trim());
     if(vis.vacunador) S.ajustes.vacunador=vis.vacunador;
+    if(paciente) vis.pacienteId=paciente.id;
+    const pac=S.pacientes.find(y=>y.id===vis.pacienteId); if(pac && vis.lat!=null){ pac.lat=vis.lat; pac.lng=vis.lng; if(vis.direccion&&!pac.domicilio) pac.domicilio=vis.direccion; }
     const i=S.visitas.findIndex(y=>y.id===vis.id); if(i>=0) S.visitas[i]=vis; else S.visitas.push(vis);
     save(); toast(vis.lat==null?"Visita guardada (sin ubicación)":"Visita guardada en el mapa"); TAB="visitas"; document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab==="visitas"?"true":"false")); cerrarOverlay(); });
   abrirOverlay(x?"Visita":"Nueva visita",form);
@@ -550,7 +579,8 @@ function vEscuelas(v){
     Object.keys(cursos).sort().forEach(c=>{
       const al=cursos[c]; const f=al.filter(p=>resumen(p).faltan);
       card.append(el("details",{open:f.length>0},
-        el("summary",{},c+" · "+(al.length-f.length)+" de "+al.length+" al día"),
+        el("summary",{},c+" · "+(al.length-f.length)+" de "+al.length+" al día ("+Math.round(100*(al.length-f.length)/al.length)+"%)"),
+        el("div",{class:"bar-cob",style:"margin-top:6px","aria-hidden":"true"},el("span",{style:"width:"+Math.round(100*(al.length-f.length)/al.length)+"%"})),
         el("div",{class:"list",style:"margin-top:8px"},al.sort((a,b)=>nombreCompleto(a).localeCompare(nombreCompleto(b))).map(p=>filaPaciente(p)))));
     });
     card.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarEscuela(e,cursos)},"Descargar planilla de esta escuela")));
@@ -594,7 +624,24 @@ const ALIAS={
   telefono:["telefono","teléfono","tel","celular"],
   escuela:["escuela","establecimiento educativo","colegio","institucion","institución"],
   curso:["curso","grado","año","division","división","sala"],
+  vacuna:["vacuna","vacunas","biologico","biológico","nombre vacuna","inmunobiologico"],
+  dosis:["dosis","nro dosis","numero dosis","orden dosis","dosis aplicada"],
+  fechaap:["fecha aplicacion","fecha de aplicacion","fecha vacunacion","fecha de vacunacion","fecha aplicación","fecha"],
+  lote:["lote","nro lote","numero lote"],
+  establecimiento:["establecimiento","efector","centro de salud","establecimiento aplicacion"],
 };
+const VAC_CLAVES=[["bcg","BCG"],["hepatitis b|hbv|hepatitis_b|hep b","Hepatitis B"],["hepatitis a|hav|hep a","Hepatitis A"],["neumo","Neumococo"],["quintuple|pentavalente|cuadruple","Quíntuple"],["ipv|salk|polio","IPV"],["rota","Rotavirus"],["mening","Meningococo"],["gripe|antigripal|influenza","Antigripal"],["triple viral|srp|sarampion","Triple viral"],["varicela","Varicela"],["fiebre amarilla|fa ","Fiebre amarilla"],["dtpa|acelular","Triple bacteriana acelular"],["triple bacteriana celular|dtp","Triple bacteriana celular"],["vph|hpv|papiloma","VPH"],["doble adult|dt ","Doble adultos"],["dengue","Dengue"],["vsr|sincicial","VSR"]];
+function reglaDesde(p,vacTxt,dosisTxt){
+  const v=" "+norm(vacTxt)+" "; const par=VAC_CLAVES.find(([k])=>k.split("|").some(x=>v.includes(x))); if(!par) return null;
+  let cands=CAL.filter(r=>r.vac.startsWith(par[1])); if(!cands.length) return null;
+  const d=norm(dosisTxt||"");
+  const num=(/(\d)/.exec(d)||[])[1] || (/primera/.test(d)?"1":/segunda/.test(d)?"2":/tercera/.test(d)?"3":"");
+  const pref = /ref/.test(d)?"refuerzo": /unica/.test(d)?"unica": num?num:"";
+  const okEdad=cands.filter(r=>estadoDosis(p,r).e!=="nocorresponde");
+  if(okEdad.length) cands=okEdad;
+  if(pref){ const m=cands.find(r=>norm(r.dosis).startsWith(pref)); if(m) return m; }
+  return cands.find(r=>!(p.aplicadas||{})[r.id]) || cands[0];
+}
 const norm=s=>String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[_.\-°º]+/g," ").replace(/\s+/g," ").trim();
 function mapear(headers){ const map={}; headers.forEach(h=>{ const n=norm(h); for(const[k,al] of Object.entries(ALIAS)){ if(!map[k] && al.some(a=>norm(a)===n)) map[k]=h; } }); return map; }
 
@@ -624,7 +671,8 @@ function vistaImport(){
   const I=IMPORT; const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
   c.append(el("p",{},I.filas.length+" filas en «"+I.nombre+"». Revisá qué columna corresponde a cada dato:"));
   const form=el("div",{class:"form card"});
-  const etiquetas={apellido:"Apellido",nombre:"Nombre",nombrecompleto:"Apellido y nombre juntos",dni:"DNI",nac:"Fecha de nacimiento",sexo:"Sexo",domicilio:"Domicilio",telefono:"Teléfono",escuela:"Escuela",curso:"Curso / grado"};
+  const etiquetas={apellido:"Apellido",nombre:"Nombre",nombrecompleto:"Apellido y nombre juntos",dni:"DNI",nac:"Fecha de nacimiento",sexo:"Sexo",domicilio:"Domicilio",telefono:"Teléfono",escuela:"Escuela",curso:"Curso / grado",vacuna:"Vacuna aplicada (opcional)",dosis:"Dosis (opcional)",fechaap:"Fecha de aplicación (opcional)",lote:"Lote (opcional)",establecimiento:"Establecimiento (opcional)"};
+  if(I.map.fechaap && I.map.fechaap===I.map.nac) delete I.map.fechaap;
   Object.entries(etiquetas).forEach(([k,t])=>{
     form.append(el("label",{},t,el("select",{id:"m-"+k,onchange:e=>{I.map[k]=e.target.value||undefined; prev();}},el("option",{value:""},"— no está —"),...I.headers.map(h=>el("option",{value:h,selected:I.map[k]===h},h)))));
   });
@@ -643,11 +691,19 @@ function vistaImport(){
     pv.replaceChildren(el("h3",{},"Vista previa"),el("div",{class:"tbl-wrap"},tb),
       sinFecha? el("p",{class:"small",style:"color:var(--warn)"},sinFecha+" filas sin fecha de nacimiento válida: se importan igual, pero no se puede calcular qué vacunas les faltan."):null,
       el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>{
-        let nuevos=0, act=0;
-        conv.forEach(p=>{ if(!p.apellido&&!p.nombre) return; const ex=p.dni&&S.pacientes.find(x=>x.dni===p.dni);
-          if(ex){ Object.entries(p).forEach(([k,v])=>{ if(v) ex[k]=v; }); act++; } else { S.pacientes.push(Object.assign({id:uid(),embarazada:false,aplicadas:{}},p)); nuevos++; } });
-        save(); IMPORT=null; cerrarOverlay(); setTab("pacientes"); toast(nuevos+" nuevos, "+act+" actualizados");
-      }},"Importar "+conv.length+" pacientes")));
+        let nuevos=0, act=0, vacs=0, sinVac=0; const vistos=new Set();
+        conv.forEach((p,i)=>{ const fila=I.filas[i]; let ex=p.dni&&S.pacientes.find(x=>x.dni===p.dni);
+          if(!ex && !p.apellido && !p.nombre) return;
+          const datos={}; ["apellido","nombre","dni","nac","sexo","domicilio","telefono","escuela","curso"].forEach(k=>{ if(p[k]) datos[k]=p[k]; });
+          if(ex){ Object.assign(ex,datos); if(!vistos.has(ex.id)){act++; vistos.add(ex.id);} } else { ex=Object.assign({id:uid(),embarazada:false,aplicadas:{},historial:[]},datos); S.pacientes.push(ex); nuevos++; vistos.add(ex.id); }
+          if(I.map.vacuna){ const vt=String(fila[I.map.vacuna]??"").trim(); if(!vt) return;
+            const fa=I.map.fechaap?fechaDesde(fila[I.map.fechaap]):""; const r=ex.nac?reglaDesde(ex,vt,I.map.dosis?String(fila[I.map.dosis]??""):""):null;
+            if(!r||!fa){ sinVac++; return; }
+            ex.historial=ex.historial||[];
+            if(!ex.historial.some(h=>h.dosis===r.id&&h.fecha===fa)){ ex.historial.push({rid:uid(),dosis:r.id,fecha:fa,lote:I.map.lote?String(fila[I.map.lote]??"").trim().toUpperCase():"",vacunador:"",lugar:"",establecimiento:I.map.establecimiento?String(fila[I.map.establecimiento]??"").trim():"",condicion:"",obs:"Importado de "+I.nombre,esavi:false}); recalcular(ex,r.id); vacs++; }
+          } });
+        save(); IMPORT=null; cerrarOverlay(); setTab("pacientes"); toast(nuevos+" nuevos, "+act+" actualizados"+(I.map.vacuna?", "+vacs+" vacunas cargadas"+(sinVac?" ("+sinVac+" sin reconocer)":""):""));
+      }},I.map.vacuna?"Importar "+conv.length+" filas (pacientes y vacunas)":"Importar "+conv.length+" pacientes")));
   }
   prev();
   abrirOverlay("Importar planilla",c);
@@ -657,13 +713,13 @@ function vDatos(v){
   v.append(el("h2",{},"Registro, Excel y copias"));
   cardRegistroDia(v);
   v.append(el("div",{class:"card"},el("h3",{},"Importar pacientes desde Excel o CSV"),
-    el("p",{class:"small muted"},"La planilla necesita una fila de títulos. Reconozco columnas como Apellido, Nombre, DNI, Fecha de nacimiento, Domicilio, Escuela y Curso. Si un DNI ya existe, se actualizan sus datos."),
+    el("p",{class:"small muted"},"La planilla necesita una fila de títulos. Reconozco columnas como Apellido, Nombre, DNI, Fecha de nacimiento, Domicilio, Escuela y Curso. Si la planilla trae Vacuna, Dosis, Fecha de aplicación y Lote (como un reporte de vacunas aplicadas), también carga las vacunas. Si un DNI ya existe, se actualizan sus datos."),
     el("input",{type:"file",id:"f-import",accept:".xlsx,.xls,.csv,.txt",onchange:e=>{ if(e.target.files[0]) leerArchivo(e.target.files[0]); e.target.value=""; }}),
     el("button",{class:"btn ghost sm",onclick:()=>exportarFilas([{Apellido:"PÉREZ",Nombre:"Juan",DNI:"12345678","Fecha de nacimiento":"15/03/2019",Domicilio:"Calle 1 123",Teléfono:"",Escuela:"Escuela N° 0000",Curso:"1° grado A"}],"modelo_planilla_pacientes")},"Descargar planilla modelo")));
   v.append(el("div",{class:"card"},el("h3",{},"Copia de seguridad"),
     el("p",{class:"small muted"},"Los datos se guardan solo en este celular. Si borrás los datos del navegador o cambiás de teléfono, se pierden. Hacé una copia seguido y guardala en un lugar seguro."),
     el("div",{class:"toolbar"},
-      el("button",{class:"btn",onclick:()=>guardarArchivo("copia_vacunatorio_"+iso(hoy)+".json",JSON.stringify({version:2,fecha:iso(hoy),pacientes:S.pacientes,visitas:S.visitas||[]}))},"Hacer copia"),
+      el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("copia_vacunatorio_"+iso(hoy)+".json",JSON.stringify({version:2,fecha:iso(hoy),pacientes:S.pacientes,visitas:S.visitas||[]})); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
       el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; save(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
   const nEj=S.pacientes.filter(p=>p.ejemplo).length;
   if(nEj) v.append(el("div",{class:"card"},el("h3",{},"Pacientes de ejemplo"),el("p",{class:"small muted"},"Hay "+nEj+" pacientes inventados para mostrar la app."),el("div",{class:"toolbar"},el("button",{class:"btn danger",onclick:()=>{S.pacientes=S.pacientes.filter(p=>!p.ejemplo); S.visitas=(S.visitas||[]).filter(x=>!x.ejemplo); save(); render(); toast("Ejemplos borrados");}},"Borrar ejemplos"))));
@@ -675,6 +731,10 @@ function vDatos(v){
     el("div",{class:"toolbar"},
       el("button",{class:"btn",onclick:async()=>{ const v=pinIn.value.trim(); if(!/^\d{4,8}$/.test(v)){toast("El PIN tiene que tener de 4 a 8 números");return;} S.pinHash=await hash(v); save(); render(); toast("PIN guardado"); }},S.pinHash?"Cambiar PIN":"Poner PIN"),
       S.pinHash? el("button",{class:"btn ghost",onclick:()=>{S.pinHash=null; save(); render(); toast("PIN quitado");}},"Quitar PIN"):null)));
+  if("Notification" in window){ const st=Notification.permission;
+    v.append(el("div",{class:"card"},el("h3",{},"Avisos en el celular"),
+      el("p",{class:"small muted"},st==="granted"?"Activados: una vez por día, al abrir la app, te avisa cuántos pacientes tienen vacunas atrasadas.":st==="denied"?"Los avisos están bloqueados. Activalos en los ajustes del navegador para esta página.":"Recibí un aviso por día con la cantidad de pacientes con vacunas atrasadas."),
+      st==="default"?el("div",{class:"toolbar"},el("button",{class:"btn",onclick:async()=>{ try{ await Notification.requestPermission(); }catch(e){} S.ultimoAviso=null; render(); avisoDiario(); }},"Activar avisos")):null)); }
   v.append(el("div",{class:"note"},"Privacidad (Ley 25.326 de datos personales y Ley 26.529 de derechos del paciente): estos datos no se envían a ningún servidor. No compartas las copias por WhatsApp ni redes; guardalas en un lugar con clave."));
 }
 async function hash(t){ try{ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("vtc:"+t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }catch(e){ return "p:"+t.split("").reverse().join(""); } }
@@ -694,7 +754,19 @@ function vCalendario(v){
 }
 
 /* ===================== INICIO ===================== */
+async function avisoDiario(){
+  try{
+    if(!("Notification" in window) || Notification.permission!=="granted") return;
+    if(S.ultimoAviso===iso(hoy)) return;
+    const n=S.pacientes.filter(p=>!p.ejemplo&&resumen(p).atrasada.length).length; if(!n) return;
+    S.ultimoAviso=iso(hoy); save(true);
+    const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration();
+    const txt=n+(n===1?" paciente tiene":" pacientes tienen")+" vacunas atrasadas. Tocá para ver la lista.";
+    if(reg) reg.showNotification("Vacunatorio Tres Cerritos",{body:txt,icon:"icon-192.png",tag:"atrasados"}); else new Notification("Vacunatorio Tres Cerritos",{body:txt});
+  }catch(e){}
+}
 async function iniciar(){
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   const habia=load();
   if(!habia){ S.pacientes=ejemplos(); const d=(n)=>{const x=new Date(hoy); x.setDate(x.getDate()-n); return iso(x);};
     S.visitas=[{id:uid(),fecha:d(1),hora:"10:15",lat:-24.7698,lng:-65.3941,direccion:"EJEMPLO: Los Ceibos 100",resultado:"vacunado",personas:"EJEMPLO Ríos, Mateo",vacunas:"Antigripal",vacunador:"",obs:"",ejemplo:true},
@@ -706,6 +778,7 @@ async function iniciar(){
     const probar=async()=>{ if(await hash(inp.value)===S.pinHash){ lk.hidden=true; render(); } else { $("#lock-msg").textContent="PIN incorrecto"; inp.value=""; } };
     $("#lock-ok").onclick=probar; inp.onkeydown=e=>{ if(e.key==="Enter") probar(); };
   } else render();
+  setTimeout(avisoDiario,1500);
 }
 iniciar();
 </script>
