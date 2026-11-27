@@ -174,6 +174,15 @@ header h1{font-size:1.15rem;line-height:1.15}
 .logo-ph{width:52px;height:52px;border:0;background:none;padding:0;cursor:pointer}
 .logo-ph svg{width:52px;height:52px}
 #logo-box{cursor:pointer}
+.vg-info{margin-left:auto;border:0;background:var(--accent-soft);color:var(--accent);font-weight:800;border-radius:999px;width:32px;height:32px;min-height:0;padding:0;font-size:1rem;cursor:pointer}
+.gu-fs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.gu-f{background:var(--gray-soft);border-radius:10px;padding:6px 8px;display:flex;flex-direction:column;font-size:.85rem}
+.gu-f span{font-size:.72rem;color:var(--muted)}
+.gu-sec{margin-top:6px}.gu-sec ul,.ask ul{margin:4px 0 0;padding-left:20px}.gu-sec li{margin:2px 0}
+.gu-item{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.gu-item>summary{cursor:pointer;list-style:none}.gu-item .gu-card{margin-top:8px;box-shadow:none;border:0;padding:0}
+#as-res ul{margin:4px 0;padding-left:20px}
+
 .hoja-fondo{position:fixed;inset:0;z-index:80;background:rgba(5,20,45,.45);display:flex;align-items:flex-end;justify-content:center}
 .hoja{background:var(--surface);color:var(--ink);width:min(520px,100%);border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;box-shadow:0 -8px 30px rgba(0,0,0,.25)}
 .hoja .btn{width:100%;justify-content:center}
@@ -545,6 +554,11 @@ function vPendientes(v){
     tile("xls","linear-gradient(135deg,#1fa356,#0e7a37)","Exportar Excel",exportarTodo),
     tileA("ext","linear-gradient(135deg,#334a66,#1d2f45)","SISA NomiVac",ENLACES_FIJOS[0][1]),
     tileA("ext","linear-gradient(135deg,#0b8fb0,#086f8a)","Acuario",ENLACES_FIJOS[1][1]),camIn));
+  { const qi=el("input",{type:"search",placeholder:"¿Qué le toca a un nene de 5 años?",enterkeyhint:"search",style:"flex:1;min-height:46px"});
+    const fq=el("form",{class:"toolbar",style:"flex-wrap:nowrap"},qi,el("button",{class:"btn",type:"submit"},"Preguntar"));
+    fq.addEventListener("submit",e=>{ e.preventDefault(); abrirAsistente(qi.value.trim()); });
+    v.append(el("div",{class:"card ask"},el("div",{class:"toolbar",style:"justify-content:space-between"},el("h3",{style:"margin:0"},"💬 Consultas sobre vacunas"),el("button",{class:"btn ghost sm",onclick:()=>abrirGuia()},"📖 Guía")),
+      el("p",{class:"small muted",style:"margin:4px 0 8px"},"Esquemas, intervalos, contraindicaciones, cadena de frío, ESAVI o qué le falta a un paciente. Sin internet."),fq)); }
   const accion=(ic,col,tit,sub,fn)=>el("button",{class:"row",onclick:fn},el("span",{class:"qa-ic",style:"background:"+col},ic),el("div",{class:"main"},el("div",{class:"name"},tit),el("div",{class:"small muted"},sub)),el("span",{class:"muted",style:"font-size:1.3rem"},"›"));
   v.append(el("div",{class:"list"},
     accion("+","linear-gradient(135deg,var(--hdr1),var(--hdr2))","Registrar aplicación","Buscar por DNI → vacuna → confirmar",()=>flujoRegistro()),
@@ -1160,7 +1174,7 @@ function gridVacunas(p,o={}){
     const aviso=el("div",{class:"small vg-aviso"});
     const extra=el("div",{class:"vg-extra",hidden:true},el("label",{},"Lote",lote,el("datalist",{id:lid},act.map(x=>el("option",{value:x.l.lote})))),el("label",{},"Condición (como en SISA)",cond,acu));
     const due=chips.some(c=>!c.bloqueada&&(c.st==="atrasada"||c.st==="pendiente"));
-    const nom=el("div",{class:"vg-name"},el("b",{},g[0]==="Antigripal"?nombreSisa(chips[0].rule,p,getF()):g[0]),due?el("span",{class:"chip warn"},"Le corresponde"):null);
+    const nom=el("div",{class:"vg-name"},el("b",{},g[0]==="Antigripal"?nombreSisa(chips[0].rule,p,getF()):g[0]),due?el("span",{class:"chip warn"},"Le corresponde"):null,guiaDe(g[0])?el("button",{type:"button",class:"vg-info",title:"Ver vía, dosis y contraindicaciones","aria-label":"Información de la vacuna",onclick:()=>verGuiaRapida(g[0])},"ⓘ"):null);
     const row=el("div",{class:"vg-row"+(due?" due":"")},nom,el("div",{class:"vg-doses"},chips.map(c=>c.lab)),aviso,extra);
     const toque=()=>{ const sel=chips.filter(c=>c.chk.checked); extra.hidden=!sel.length; row.classList.toggle("on",!!sel.length);
       if(sel.length&&!cond.dataset.tocado) cond.value=condSugerida(p,sel[0].rule); acu.textContent="En Acuario: "+motivoAcuario(cond.value); };
@@ -1252,6 +1266,217 @@ function importarExterno(tipo,filas,nombre){
   }},"Importar"),el("button",{class:"btn ghost",onclick:cerrarOverlay},"Cancelar")));
   abrirOverlay("Importar desde "+(tipo==="sisa"?"SISA":"Acuario"),c);
 }
+/* ===================== GUÍA DE VACUNAS (resumen del Manual de Vacunación Salta 2025) ===================== */
+// g: nombre de la fila en la grilla (GRILLA[0]) para abrir la guía desde "Vacunar".
+const GUIA=[
+ {g:"BCG",n:"BCG",prev:"Formas graves (meníngea y diseminada) de tuberculosis en los primeros años.",tipo:"Bacteria viva atenuada",via:"Intradérmica estricta (15°, bisel hacia arriba)",sitio:"Vértice inferior del deltoides, brazo derecho",dosis:"0,1 ml",aguja:"27 G",
+  esq:["Recién nacido, antes del alta de la maternidad: dosis única (más de 1500 g).","Sin vacunar a tiempo: hasta los 6 años 11 meses 29 días. Después no se aplica.","No se revacuna aunque no deje cicatriz (si la dosis está registrada)."],
+  contra:["Hijo de madre con VIH hasta descartar infección; niños con VIH.","Inmunodepresión congénita o adquirida; corticoides prolongados.","Enfermedad grave con compromiso del estado general."],
+  efectos:"Pápula → nódulo → úlcera (≈30 días) → costra → cicatriz en 4 a 8 semanas. Es normal, sin tratamiento. Avisar a la familia.",cons:"Multidosis (10): una vez reconstituida dura 6 horas. Proteger de la luz."},
+ {g:"Hepatitis B",n:"Hepatitis B",prev:"Hepatitis B y sus complicaciones (cirrosis, cáncer de hígado).",tipo:"Inactivada (recombinante)",via:"Intramuscular (90°)",sitio:"Muslo (anterolateral) en menores de 12 meses o que no caminan; deltoides en mayores y adultos",dosis:"0,5 ml pediátrica · 1 ml adulto (según laboratorio)",aguja:"23 G",
+  esq:["Recién nacido: 1 dosis monovalente antes de las 12 horas de vida (si no, lo antes posible).","2, 4 y 6 meses: va dentro de la pentavalente/quíntuple.","Desde 5 años y adultos sin esquema: 3 dosis (0 – 1 – 6 meses).","Embarazadas: iniciar o completar esquema."],
+  inter:"Si se interrumpe, no se reinicia: se completan las dosis faltantes respetando intervalos mínimos.",
+  contra:["Reacción alérgica grave a una dosis previa o a sus componentes."],efectos:"Dolor, eritema, induración (3-9%); cefalea, fatiga, irritabilidad.",cons:"2 a 8 °C. Multidosis abierta: 28 días (política de frascos abiertos)."},
+ {g:"Quintuple",n:"Pentavalente / Quíntuple celular",prev:"Difteria, tétanos, tos convulsa, Haemophilus influenzae b y hepatitis B.",tipo:"Inactivada (toxoides + bacteria muerta + conjugada)",via:"Intramuscular profunda",sitio:"Muslo en menores de 1 año; deltoides en mayores",dosis:"0,5 ml",aguja:"23 G",
+  esq:["2, 4 y 6 meses + refuerzo a los 15-18 meses.","Edad máxima: 4 años 11 meses 29 días."],
+  contra:["Reacción anafiláctica con una dosis anterior.","Encefalopatía progresiva."],prec:["Somnolencia excesiva, convulsiones o hipotonía tras una dosis previa."],
+  efectos:"Dolor y tumefacción; fiebre 38-40 °C, irritabilidad, llanto persistente, vómitos en las primeras 48 h. No contraindican nuevas dosis.",cons:"2 a 8 °C. Sensible al frío: nunca menos de 2 °C."},
+ {g:"IPV SALK",n:"IPV Salk (polio inactivada)",prev:"Poliomielitis.",tipo:"Virus inactivado",via:"Intramuscular",sitio:"Muslo en menores de 1 año; deltoides en mayores",dosis:"0,5 ml",aguja:"23 G",
+  esq:["2, 4 y 6 meses + refuerzo al ingreso escolar (cohorte de 5 años).","Recupero: hasta 6 años 11 meses → 3 dosis + refuerzo; 7 a 18 años → 2 dosis + refuerzo."],
+  inter:"1ª-2ª: 4 semanas · 2ª-3ª: 4 semanas · última dosis-refuerzo: 6 a 12 semanas (manual 2025).",
+  contra:["Alergia grave a dosis previa o a neomicina/estreptomicina."],prec:["Enfermedad aguda grave con fiebre: postergar y citar pronto."],efectos:"Dolor en el sitio.",cons:"2 a 8 °C. Sensible al frío y a la luz."},
+ {g:"Rotavirus Monovalente",n:"Rotavirus",prev:"Formas graves de diarrea por rotavirus.",tipo:"Virus vivo atenuado ORAL",via:"ORAL exclusivamente",sitio:"Boca",dosis:"1,5 ml (jeringa prellenada)",aguja:"—",
+  esq:["2 y 4 meses."],inter:"Mínimo 4 semanas entre dosis. 1ª dosis hasta las 14 semanas y 6 días. Última dosis hasta las 24 semanas (6 meses 0 días).",
+  contra:["Alergia grave a componentes.","Inmunodeficiencia combinada."],prec:["Fiebre > 38 °C, enfermedad moderada/grave, gastroenteritis aguda (postergar).","Enfermedad gastrointestinal crónica o antecedente de invaginación.","Hijo de madre con VIH: lo evalúa su médico."],
+  efectos:"Fiebre < 39 °C, vómitos, irritabilidad, diarrea.",notas:"Si escupe o vomita la dosis, NO se repite. Puede darse con cualquier otra vacuna o hemoderivado.",cons:"2 a 8 °C, protegida de la luz."},
+ {g:"Neumococo Conjugada VCN 20",n:"Neumococo conjugada (VCN20 / VCN13)",prev:"Neumonía, enfermedad invasiva y otitis por neumococo.",tipo:"Polisacárido conjugado",via:"Intramuscular (90°)",sitio:"Muslo en menores de 12 meses; deltoides en mayores y adultos",dosis:"0,5 ml",aguja:"23 G",
+  esq:["Niños: 2 y 4 meses + refuerzo a los 12 meses (nunca antes de los 12 meses).","Atrasados: inicio < 1 año → 3 dosis; 12-23 meses → 2 dosis separadas 8 semanas; ≥ 24 meses → única. Se completa hasta los 5 años.","VCN20: 1 dosis en 65 años o más, y de 5 a 64 años con enfermedad crónica, inmunocompromiso, fístula de LCR o implante coclear.","Ya vacunados antes: VCN13 → VCN20 con intervalo ≥ 8 semanas (niños) o ≥ 12 meses (adultos); VCN13+VPN23 → según grupo, VCN20 a los ≥ 5 años o no requiere."],
+  inter:"Intervalo mínimo entre dosis en niños: 8 semanas.",contra:["Alergia grave a componentes.","Prematuro con menos de 1800 g (vacunar al llegar a ese peso)."],
+  efectos:"Dolor, eritema, induración (< 48 h); fiebre, irritabilidad, cambios en el sueño.",cons:"2 a 8 °C. Agitar la jeringa hasta suspensión blanca homogénea."},
+ {g:"Meningocócica Tetravalente Conjugada",n:"Meningococo ACYW conjugada",prev:"Meningitis y sepsis por meningococo.",tipo:"Polisacárido conjugado",via:"Intramuscular (90°)",sitio:"Muslo en menores de 12 meses; deltoides en mayores",dosis:"0,5 ml",aguja:"23 G (Nimenrix: cargar con 25 G, aplicar con 23 G)",
+  esq:["3 y 5 meses + refuerzo a los 15 meses.","11 años: dosis única (cohorte; nacidos desde 2006).","Atrasados (nacidos desde 1/10/2016): < 7 meses → 2+1; 7 a 23 meses → 1+1; ≥ 2 años → 1 dosis. Refuerzo siempre después de los 15 meses."],
+  inter:"Mínimo 8 semanas entre dosis. Se puede dar con cualquier vacuna sin intervalo.",contra:["Alergia a componentes.","Fiebre > 38 °C en las 24 h previas o enfermedad aguda grave."],prec:["Enfermedad moderada: postergar.","Trombocitopenia o trastornos de coagulación."],
+  efectos:"Dolor, eritema 1-2 días; febrícula, decaimiento hasta 72 h.",notas:"Reconstituir con el diluyente del laboratorio y aplicar enseguida. Huéspedes especiales: asplenia, déficit de complemento, VIH, personal de laboratorio.",cons:"2 a 8 °C (polvo y solvente)."},
+ {g:"Antigripal",n:"Antigripal",prev:"Complicaciones graves de la gripe.",tipo:"Virus inactivado",via:"Intramuscular (90°)",sitio:"Muslo en menores de 1 año o que no caminan; brazo en mayores",dosis:"0,25 ml pediátrica (menores de 3 años) · 0,5 ml adulto",aguja:"23 G",
+  esq:["6 a 24 meses: 2 dosis de 0,25 ml separadas 4 semanas la primera vez; después 1 por año.","24 a 35 meses con riesgo: 2 dosis de 0,25 ml si nunca se vacunó; si no, 1.","3 a 8 años con riesgo: 2 dosis de 0,5 ml si nunca se vacunó; si no, 1.","9 a 64 años con factores de riesgo, 65 años o más, personal de salud y de seguridad: 1 dosis anual de 0,5 ml.","Embarazadas: en cualquier trimestre. Puérperas: hasta 10 días si no la recibió embarazada."],
+  contra:["Reacción alérgica grave (anafilaxia) a una dosis previa."],efectos:"Dolor, induración, fiebre, malestar.",cons:"2 a 8 °C."},
+ {g:"Hepatitis A",n:"Hepatitis A",prev:"Hepatitis A.",tipo:"Virus inactivado",via:"Intramuscular (90°)",sitio:"Deltoides",dosis:"0,5 ml pediátrica · 1 ml adulto (desde 18-19 años según laboratorio)",aguja:"23 G",
+  esq:["12 meses: dosis única. Recupero: nacidos desde 1/1/2004, una dosis.","Grupos de riesgo: 2 dosis (0 y 6 meses): hepatopatía crónica, manipuladores de alimentos, limpieza en salud y educación, cloacas, hemofilia, VIH, inmunocomprometidos."],
+  contra:["Reacción alérgica grave a dosis previa."],efectos:"Dolor, cefalea, fiebre, náuseas.",cons:"2 a 8 °C."},
+ {g:"Triple Viral",n:"Triple viral (sarampión, rubéola, paperas)",prev:"Sarampión, rubéola y paperas.",tipo:"Virus vivo atenuado",via:"Subcutánea (45°)",sitio:"Vértice inferior del deltoides",dosis:"0,5 ml",aguja:"25 G",
+  esq:["12 meses: 1ª dosis. Ingreso escolar (cohorte de 5 años): 2ª dosis.","Adultos nacidos desde 1965: deben tener 2 dosis de doble o triple viral.","Personal de salud: 2 dosis. Viajeros: 2 dosis; niños de 6 a 11 meses que viajan: dosis cero (no cuenta)."],
+  inter:"Con otras vivas inyectables (varicela, fiebre amarilla, dengue): el mismo día o separadas 28 días.",contra:["Anafilaxia.","Embarazo.","Inmunodeficiencia grave (oncohematológicos, inmunosupresores). VIH con CD4 > 15% sí puede."],
+  prec:["Enfermedad aguda moderada o grave.","Púrpura trombocitopénica.","Sangre, plasma o gammaglobulinas recientes: esperar 3 a 7 meses."],efectos:"Fiebre y exantema (días 5-12); artralgias por rubéola en adultos; parotiditis (raro).",cons:"2 a 8 °C. Liofilizada: reconstituir y aplicar."},
+ {g:"Varicela",n:"Varicela",prev:"Varicela y sus formas graves.",tipo:"Virus vivo atenuado",via:"Subcutánea (45°)",sitio:"Vértice inferior del deltoides",dosis:"0,5 ml",aguja:"25 G",
+  esq:["15 meses: 1ª dosis. Ingreso escolar (5 años): 2ª dosis.","Nacidos desde 1/10/2013 sin vacunar: 1ª al captarlo y 2ª a los 5 años.","Mayores de 5 años sin vacuna: 2 dosis separadas 4 semanas."],
+  inter:"Mínimo 28 días entre dosis y con otras vivas inyectables (o el mismo día).",contra:["Anafilaxia.","Inmunodeficiencia celular, VIH con CD4 < 15%, corticoides > 2 mg/kg/día."],
+  prec:["Enfermedad moderada/grave: postergar.","Gammaglobulina o sangre recientes: esperar 3 a 11 meses.","Evitar aspirina 6 semanas después.","Aciclovir/valaciclovir: no desde 1 día antes hasta 21 días después."],
+  efectos:"Dolor y eritema; 1-3% vesículas locales; erupción leve hasta 42 días.",notas:"Si aparece erupción, evitar contacto con inmunocomprometidos mientras dure.",cons:"2 a 8 °C."},
+ {g:"Triple Bacteriana Celular",n:"Triple bacteriana celular (DTP)",prev:"Difteria, tétanos y tos convulsa.",tipo:"Toxoides + bacteria muerta",via:"Intramuscular",sitio:"Deltoides",dosis:"0,5 ml",aguja:"23 G",
+  esq:["Ingreso escolar (cohorte de 5 años): única dosis.","Edad máxima: 6 años 11 meses 29 días. Desde los 7 años NO se usa (usar dTpa o dT)."],
+  contra:["Anafilaxia con dosis anterior.","Encefalopatía progresiva.","7 años o más."],efectos:"Dolor, tumefacción; fiebre 38-40 °C, llanto persistente en 48 h.",cons:"Multidosis (10): abierta dura 28 días. 2 a 8 °C."},
+ {g:"Triple Bacteriana Acelular",n:"Triple bacteriana acelular (dTpa)",prev:"Difteria, tétanos y tos convulsa.",tipo:"Toxoides + antígenos de Pertussis",via:"Intramuscular (90°)",sitio:"Deltoides",dosis:"0,5 ml",aguja:"23 G",
+  esq:["11 años: 1 dosis.","Embarazadas: 1 dosis en cada embarazo, desde la semana 20.","Personal de salud que atiende menores de 1 año: cada 5 años.","Convivientes de prematuros de menos de 1500 g (hasta 6 meses): 1 dosis."],
+  contra:["Anafilaxia; encefalopatía dentro de 7 días de una vacuna con Pertussis (puede recibir dT)."],efectos:"Dolor, enrojecimiento, fiebre, cefalea, cansancio.",cons:"Monodosis. 2 a 8 °C."},
+ {g:"Doble Bacteriana",n:"Doble adultos (dT)",prev:"Difteria y tétanos.",tipo:"Toxoides",via:"Intramuscular (90°)",sitio:"Deltoides",dosis:"0,5 ml",aguja:"23 G",
+  esq:["Desde los 7 años sin esquema: 3 dosis (0 – 1 – 12 meses; reducido 0 – 1 – 6).","Refuerzo cada 10 años toda la vida."],inter:"Esquema interrumpido: completar las faltantes, sin reiniciar.",
+  contra:["Anafilaxia."],efectos:"Eritema, dolor; fiebre moderada.",notas:"Los inmunocomprometidos deben recibirla.",cons:"Multidosis (10): abierta dura 28 días. 2 a 8 °C."},
+ {g:"VPH Nonavalente",n:"VPH (virus del papiloma humano)",prev:"Infección por VPH y cánceres relacionados.",tipo:"Recombinante",via:"Intramuscular",sitio:"Deltoides",dosis:"0,5 ml",aguja:"23 G",
+  esq:["11 años (cohorte): mujeres nacidas desde 2000 y varones desde 2006.","10 a 20 años: UNA dosis = esquema completo.","21 a 26 años: 2 dosis (0 y 6 meses).","Inmunocomprometidos de 10 a 26 años: 3 dosis (0 – 2 – 6 meses)."],
+  inter:"1ª-2ª: 4 semanas · 2ª-3ª: 12 semanas · 1ª-3ª: 24 semanas.",contra:["Reacción alérgica grave a dosis previa."],efectos:"Dolor, cefalea, fiebre, mareos. Síncope en adolescentes: aplicar sentado y observar 15 min.",cons:"Jeringa prellenada. 2 a 8 °C."},
+ {g:"Virus Sincicial Respiratorio",n:"VSR (virus sincicial respiratorio) en el embarazo",prev:"Bronquiolitis y neumonía graves en el bebé hasta los 6 meses.",tipo:"Recombinante",via:"Intramuscular (90°)",sitio:"Deltoides",dosis:"0,5 ml",aguja:"23 G",
+  esq:["Embarazadas entre la semana 32 y la 36,6: dosis única."],contra:["Anafilaxia a componentes."],efectos:"Dolor, cefalea, mialgias, náuseas.",notas:"No aplicar fuera de la ventana 32-36,6 semanas (riesgo de parto prematuro). Kit: reconstituir sin agitar.",cons:"2 a 8 °C."},
+ {g:"Fiebre Amarilla",n:"Fiebre amarilla",prev:"Fiebre amarilla.",tipo:"Virus vivo atenuado",via:"Subcutánea (45°)",sitio:"Vértice inferior del deltoides",dosis:"0,5 ml",aguja:"25 G",
+  esq:["Solo zonas de riesgo (en Salta: Orán, San Martín, Anta, Rivadavia): 18 meses + refuerzo a los 11 años.","Adultos hasta 59 años sin vacunar: única dosis.","Viajeros: al menos 10 días antes del viaje."],
+  contra:["Menores de 6 meses; 60 años o más.","Embarazo; lactancia exclusiva hasta 6 meses.","Alergia al huevo, neomicina o kanamicina.","VIH sintomático o CD4 < 200; inmunodeficiencias, tumores, trasplantes, enfermedades del timo."],prec:["6 a 8 meses; 60 años o más; VIH con CD4 200-499."],
+  cons:"Multidosis: reconstituida dura 6 horas."},
+ {g:"Tetravalente contra el Dengue",n:"Dengue (Qdenga)",prev:"Dengue.",tipo:"Virus vivo atenuado",via:"Subcutánea (45°)",sitio:"Vértice inferior del deltoides",dosis:"0,5 ml",aguja:"25 G",
+  esq:["15 a 39 años de departamentos priorizados (San Martín, Orán, Rivadavia, Anta, Güemes, Rosario de la Frontera, Metán): 2 dosis separadas 3 meses."],
+  contra:["Embarazo y lactancia.","Inmunosupresores o corticoides altos en las 4 semanas previas; VIH con inmunidad deteriorada.","Alergia grave a dosis previa."],prec:["Fiebre aguda grave: postergar.","Evitar embarazo 1 mes después.","Si tuvo dengue: esperar 6 meses."],
+  notas:"Atemperar 15 min antes, reconstituir sin agitar y aplicar enseguida.",efectos:"Dolor (50%), cefalea, mialgias, fiebre (11%)."},
+ {g:"Antirrábica",n:"Antirrábica humana",prev:"Rabia (post-exposición).",tipo:"Virus inactivado",via:"Intramuscular",sitio:"Deltoides o muslo según edad",dosis:"Verorab 0,5 ml · Rabipur 1 ml",aguja:"23 G",
+  esq:["Zagreb (recomendado): día 0 dos dosis (una en cada brazo), día 7 y día 21.","Essen abreviado: días 0, 3, 7 y 14 (no en inmunocomprometidos)."],contra:["No tiene: la rabia es mortal. El embarazo no la contraindica."],cons:"2 a 8 °C, centro de la heladera, no congelar."}
+];
+const GUIA_GENERAL=[
+ ["Vías, sitios y agujas",["Intramuscular 90° (aguja 23 G): hepatitis A y B, pentavalente, neumococo, DTP, dTpa, dT, VPH, antigripal, Salk, meningococo, VSR.","Subcutánea 45° (25 G), vértice inferior del deltoides: triple viral, doble viral, fiebre amarilla, varicela, dengue.","Intradérmica 15° (27 G): BCG, brazo derecho.","Oral: rotavirus.","Menores de 12 meses o que no caminan: muslo (cara anterolateral). Mayores: deltoides.","Varias el mismo día: sitios distintos, al menos 2,5 cm entre una y otra."]],
+ ["Intervalos entre vacunas",["Dos vivas inyectables (triple/doble viral, varicela, fiebre amarilla, dengue): el mismo día o separadas al menos 28 días.","Rotavirus (viva oral): antes, junto o después de cualquier vacuna.","Todas las demás: juntas o con cualquier intervalo.","No respetar el intervalo mínimo o la edad mínima puede dar una respuesta pobre: la dosis puede no contar.","Esquema interrumpido: NO se reinicia, se completan las dosis faltantes.","Prematuros: se vacunan por edad cronológica (neumococo al llegar a 1800 g)."]],
+ ["Cadena de frío",["Todas las vacunas: entre +2 °C y +8 °C.","El calor daña de forma acumulativa; la congelación (menos de 0 °C) las inactiva y es irreversible.","Heladera exclusiva para vacunas; termómetro adentro, a la vista, sin tocar paredes; registrar temperatura al menos 2 veces por día.","Nunca vacunas en la puerta ni en el congelador; no amontonar; no guardar comida.","Botellas con agua en los estantes de abajo (2,5 cm entre sí) para estabilizar la temperatura.","Paquetes fríos: ambientarlos antes de armar la conservadora para no congelar vacunas. Termo a la sombra y cerrado.","Desvío de temperatura: separar e identificar las vacunas, mantenerlas entre 2 y 8 °C, avisar al nivel superior y llenar el formulario de desvío. No usarlas hasta que respondan.","Sospecha de congelación (vacunas con aluminio): prueba de agitación comparando con un frasco no congelado."]],
+ ["Frascos abiertos",["Multidosis líquidas (DPT, dT/dTa, hepatitis B): se usan hasta 28 días abiertas si no vencieron, se conservaron en frío, el tapón no se mojó y se extrajeron con asepsia.","Reconstituidas (BCG, fiebre amarilla): 6 horas.","Monodosis reconstituidas (meningococo, dengue, VSR, triple viral): aplicar enseguida.","Frascos abiertos para la próxima sesión: recipiente aparte con el cartel «Viales abiertos – usar primero»."]],
+ ["ESAVI (eventos después de vacunar)",["Es cualquier problema de salud después de vacunar, aunque no esté probado que lo causó la vacuna.","Notifica cualquier integrante del equipo de salud que lo conozca.","Plazos: graves dentro de las 48 horas; no graves dentro de 7 días (si se supo después, igual se notifica).","Dónde: ficha de ESAVI en SISA (https://sisa.msal.gov.ar/sisa/). Con matrícula profesional alcanza.","Anotar: vacuna, marca, lote, fecha de vacunación, inicio del cuadro, evolución.","Desmayo (síncope) por ansiedad: frecuente en adolescentes; no contraindica dosis siguientes. Vacunar sentado y observar.","En la app: marcá «ESAVI» al editar la aplicación para que quede registrado con su lote."]],
+ ["Antes de vacunar (verificar siempre)",["Revisar carnet, SISA/NomiVac o Acuario: no vacunar de más ni de menos.","Preguntar: alergias graves, embarazo, inmunodepresión, fiebre, transfusiones o gammaglobulina recientes.","Fiebre leve, resfrío, diarrea leve, antibióticos o lactancia NO son contraindicación para la mayoría de las vacunas.","Controlar vencimiento, lote y aspecto de la vacuna.","Registrar todo: fecha, vacuna, dosis, lote, condición; y cargarlo en el sistema."]]
+];
+function guiaDe(nombreGrilla){ return GUIA.find(x=>x.g===nombreGrilla)||null; }
+function fichaGuia(x){
+  const L=(t,arr)=>arr&&arr.length?el("div",{class:"gu-sec"},el("b",{},t),el("ul",{},arr.map(s=>el("li",{},s)))):null;
+  const F=(t,v)=>v?el("div",{class:"gu-f"},el("span",{},t),el("b",{},v)):null;
+  return el("div",{class:"card gu-card"},el("h3",{},x.n),el("p",{class:"small muted",style:"margin:0 0 8px"},x.prev+" · "+x.tipo),
+    el("div",{class:"gu-fs"},F("Vía",x.via),F("Sitio",x.sitio),F("Dosis",x.dosis),F("Aguja",x.aguja)),
+    L("Esquema",x.esq), x.inter?L("Intervalos",[x.inter]):null, L("Contraindicaciones",x.contra), L("Precauciones",x.prec),
+    x.efectos?L("Efectos esperables",[x.efectos]):null, x.notas?L("Importante",[x.notas]):null, x.cons?L("Conservación",[x.cons]):null);
+}
+function abrirGuia(nombre){
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const q=el("input",{type:"search",placeholder:"Buscar: varicela, intervalo, frasco, ESAVI…",style:"min-height:46px"});
+  const lista=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const pintar=()=>{ const t=norm(q.value||""); const m=s=>!t||norm(JSON.stringify(s)).includes(t);
+    const gen=GUIA_GENERAL.filter(m).map(([ti,arr])=>el("details",{class:"card",open:!!t},el("summary",{},el("b",{},ti)),el("ul",{},arr.map(s=>el("li",{},s)))));
+    const vs=GUIA.filter(m).map(x=>el("details",{class:"gu-item",open:!!t||GUIA.filter(m).length===1},el("summary",{},el("b",{},x.n),el("span",{class:"small muted"}," · "+x.via.split(" (")[0])),fichaGuia(x)));
+    lista.replaceChildren(...gen,el("div",{class:"group-h"},"Vacunas"),...vs, (!gen.length&&!vs.length)?el("p",{class:"muted"},"No encontré nada con eso."):null); };
+  q.addEventListener("input",pintar);
+  c.append(el("p",{class:"small muted",style:"margin:0"},"Resumen del Manual de Vacunación de Salta 2025 (los de 2008, 2011 y 2013 quedan como referencia). Ante una duda, manda el manual y la normativa vigente."),q,lista);
+  if(nombre){ const x=guiaDe(nombre); if(x){ q.value=x.n.split(" (")[0]; } }
+  pintar(); abrirOverlay("Guía de vacunas",c);
+}
+
+/* ===================== ASISTENTE DE CONSULTAS (sin internet: usa la Guía y las reglas del calendario) ===================== */
+const VIVAS_INY=["Triple Viral","Varicela","Fiebre Amarilla","Tetravalente contra el Dengue","Doble Viral"];
+const PREG_FREC=["¿Qué vacunas le tocan a un nene de 5 años?","¿Qué vacunas le tocan a los 11 años?","¿Qué vacunas recibe una embarazada?","Se atrasó la 2ª dosis, ¿qué hago?","Intervalo entre triple viral y varicela","Contraindicaciones de la varicela","¿Cómo notifico un ESAVI?","Cadena de frío: ¿qué hago si se cortó la luz?","¿Cuánto dura un frasco abierto?","¿Qué le falta a un paciente? (escribí su DNI o apellido)"];
+function vacunasEnTexto(t){ const n=" "+norm(t)+" "; const out=[];
+  GRILLA.forEach(g=>{ const keys=[g[0],g[1],g[2],...(g[4]||[])].map(x=>norm(x)).filter(k=>k.length>=3); if(keys.some(k=>n.includes(" "+k)||n.includes(k+" "))) out.push(g[0]); });
+  const extra=[["sarampion","Triple Viral"],["srp","Triple Viral"],["polio","IPV SALK"],["neumo","Neumococo Conjugada VCN 20"],["mening","Meningocócica Tetravalente Conjugada"],["gripe","Antigripal"],["hepatitis b","Hepatitis B"],["hepatitis a","Hepatitis A"],["papiloma","VPH Nonavalente"],["dtpa","Triple Bacteriana Acelular"],["triple bacteriana acelular","Triple Bacteriana Acelular"],["dtp","Triple Bacteriana Celular"],["doble adulto","Doble Bacteriana"],["dt ","Doble Bacteriana"],["tetanos","Doble Bacteriana"],["pentavalente","Quintuple"],["quintuple","Quintuple"],["rabia","Antirrábica"],["sincicial","Virus Sincicial Respiratorio"],["vsr","Virus Sincicial Respiratorio"],["amarilla","Fiebre Amarilla"],["dengue","Tetravalente contra el Dengue"]];
+  extra.forEach(([k,g])=>{ if(n.includes(k)&&!out.includes(g)) out.push(g); });
+  return out.filter((x,i)=>out.indexOf(x)===i); }
+function edadEnTexto(t){ const n=norm(t);
+  if(/recien nacid|\brn\b|al nacer/.test(n)) return 0;
+  let m=/(\d+(?:[.,]\d+)?)\s*(mes|meses|m\b)/.exec(n); if(m) return Math.round(parseFloat(m[1].replace(",",".")));
+  m=/(\d+)\s*(ano|anos|anio|anios|a\b)/.exec(n); if(m) return +m[1]*12;
+  m=/(?:de|tiene|con)\s+(\d{1,2})\b(?!\s*(sem|dia))/.exec(n); if(m&&+m[1]<100) return +m[1]*12;
+  return null; }
+const cita=t=>el("div",{class:"small muted",style:"margin-top:6px"},"📖 "+t);
+function respuestaEdad(A,t){
+  const out=[]; const etq=A===0?"recién nacido":A<24?A+" meses":Math.floor(A/12)+" años";
+  const y=Math.floor(A/12); const nac=new Date(hoy); nac.setMonth(nac.getMonth()-A); const fake={id:"_",nac:iso(nac),aplicadas:{},historial:[],grupos:[],riesgos:[]};
+  const exactas=CAL.filter(r=>!r.cond&&!r.zona&&!r.especial&&(r.cohorte? y===r.cohorte : (r.edad===A||(r.tipo==="anual"&&A>=r.edad&&(r.max==null||A<=r.max)))));
+  out.push(el("p",{},el("b",{},"A los "+etq+" (calendario regular):")));
+  out.push(exactas.length?el("ul",{},exactas.map(r=>el("li",{},nombreSisa(r,fake)+" · "+dosisSisa(r)+(r.cohorte?" (por cohorte: el año en que cumple "+r.cohorte+")":"")))):el("p",{class:"small"},"No hay una dosis del calendario justo a esa edad."));
+  const r=resumen(fake);
+  const prev=[...r.atrasada,...r.pendiente].filter(x=>!exactas.includes(x));
+  if(prev.length) out.push(el("p",{class:"small"},el("b",{},"Si no tiene vacunas anteriores, también le faltaría: "),prev.map(x=>nombreSisa(x,fake)+" "+dosisSisa(x)).join(", ")+". Revisá el carnet: el esquema no se reinicia, se completa."));
+  if(A>=780) out.push(el("p",{class:"small"},"65 años o más: antigripal anual, neumococo VCN20 (1 dosis), dT cada 10 años, hepatitis B si no tiene esquema."));
+  out.push(cita("Calendario Nacional y Manual de Vacunación Salta 2025 (esquemas por vacuna)."));
+  return out; }
+function respuestaPaciente(p){ const r=resumen(p); const ed=edadCampania(p);
+  const li=(arr,cls)=>arr.map(x=>el("li",{},el("span",{class:"chip "+cls},nombreSisa(x,p)+" · "+dosisSisa(x))));
+  return [el("p",{},el("b",{},nombreCompleto(p))," · "+(p.dni?"DNI "+p.dni+" · ":"")+(p.nac?edadTexto(edadMeses(p.nac)):"sin fecha de nacimiento")),
+    !p.nac?el("p",{class:"small"},"Cargale la fecha de nacimiento para calcular lo que le falta."):null,
+    r.atrasada.length?el("div",{},el("b",{},"Atrasadas:"),el("ul",{},li(r.atrasada,"bad"))):null,
+    r.pendiente.length?el("div",{},el("b",{},"Le tocan ahora:"),el("ul",{},li(r.pendiente,"warn"))):null,
+    r.proxima.length?el("div",{},el("b",{},"Próximas:"),el("ul",{},li(r.proxima.slice(0,5),""))):null,
+    (!r.atrasada.length&&!r.pendiente.length&&p.nac)?el("p",{class:"ok-txt"},"Está al día según lo cargado en la app."):null,
+    ed?el("p",{class:"small"},"Campaña escolar "+anioCampania()+": "+(faltanCampania(p,ed).length?"le faltan "+faltanCampania(p,ed).map(x=>x.vac.split(" (")[0]).join(", "):"completa")+"."):null,
+    el("div",{class:"toolbar"},el("button",{class:"btn sm",type:"button",onclick:()=>abrirPaciente(p.id)},"Abrir ficha"),(r.atrasada.length||r.pendiente.length)?el("button",{class:"btn ghost sm",type:"button",onclick:()=>vacunarVarias(p)},"💉 Vacunar"):null),
+    cita("Calculado con las reglas del calendario de la app y lo registrado en su ficha.")]; }
+function responder(q){
+  const n=norm(q); if(!n) return [el("p",{class:"muted"},"Escribí una pregunta o tocá una de las de abajo.")];
+  // 1) Paciente cargado (DNI o apellido)
+  const dni=(q.match(/\b\d{7,8}\b/)||[])[0];
+  let pac=dni?S.pacientes.find(p=>p.dni===dni):null;
+  if(!pac&&/(paciente|falta|le toca|ficha|alumno|de )/.test(n)){ const ws=n.split(" ").filter(w=>w.length>=4&&!["vacunas","vacuna","falta","faltan","paciente","tiene","toca","alumno","ficha","cuales","quien","sobre","para"].includes(w));
+    const ap=p=>norm(p.apellido||"").split(" "); pac=S.pacientes.find(p=>!p.ejemplo&&ws.some(w=>ap(p).includes(w)))||S.pacientes.find(p=>ws.some(w=>ap(p).includes(w))); }
+  if(pac) return respuestaPaciente(pac);
+  const vs=vacunasEnTexto(q); const A=edadEnTexto(q);
+  // 2) Temas generales
+  const gen=k=>{ const s=GUIA_GENERAL.find(x=>x[0].startsWith(k)); return [el("p",{},el("b",{},s[0])),el("ul",{},s[1].map(x=>el("li",{},x))),cita("Manual de Vacunación Salta 2025 · "+s[0]+".")]; };
+  if(/esavi|efecto adverso|reaccion|notific/.test(n)&&!vs.length) return gen("ESAVI");
+  if(/cadena de frio|heladera|temperatura|corte de luz|se corto la luz|termometro|conservadora|termo|congel/.test(n)) return gen("Cadena");
+  if(/frasco|vial|multidosis|reconstitu|abiert/.test(n)&&!vs.length) return gen("Frascos");
+  if(/via|sitio|aguja|calibre|donde se aplica|intramuscular|subcutanea|intradermica/.test(n)&&!vs.length) return gen("Vías");
+  // 3) Embarazo
+  if(/embaraz|gestante|gestacion/.test(n)&&!vs.length){ const sem=(/(\d{1,2})\s*sem/.exec(n)||[])[1];
+    const out=[el("p",{},el("b",{},"Embarazadas (calendario):")),el("ul",{},[
+      "Antigripal: en cualquier trimestre (y puérpera hasta 10 días si no la recibió).","dTpa (triple bacteriana acelular): 1 dosis en cada embarazo, desde la semana 20.","VSR: dosis única entre la semana 32 y la 36,6.","Hepatitis B: iniciar o completar esquema (0-1-6 meses).","dT si le falta el esquema o el refuerzo."].map(x=>el("li",{},x))),
+      el("p",{class:"small"},el("b",{},"NO se aplican en el embarazo: "),"triple viral, doble viral, varicela, fiebre amarilla y dengue (virus vivos).")];
+    if(sem){ const s=+sem; out.push(el("p",{class:"small"},"Con "+s+" semanas: "+[s>=20?"dTpa sí":"dTpa a partir de la semana 20",(s>=32&&s<37)?"VSR sí (está en la ventana 32-36,6)":s<32?"VSR desde la semana 32":"VSR ya no (pasó la semana 36,6)","antigripal sí"].join(" · ")+".")); }
+    out.push(cita("Manual 2025 · dTpa, antigripal, VSR, hepatitis B y contraindicaciones de vacunas vivas.")); return out; }
+  // 4) Intervalo entre dos vacunas
+  if(vs.length>=2&&/interval|separ|junt|mismo dia|entre|despues/.test(n)){ const [a,b]=vs; const va=VIVAS_INY.includes(a), vb=VIVAS_INY.includes(b);
+    return [el("p",{},el("b",{},a+" y "+b)),el("p",{},va&&vb?"Las dos son a virus vivos inyectables: se aplican el MISMO DÍA (en sitios distintos) o separadas AL MENOS 28 DÍAS.":"Se pueden aplicar juntas (sitios distintos, a 2,5 cm) o con cualquier intervalo entre ellas."+((a.includes("Rotavirus")||b.includes("Rotavirus"))?" El rotavirus (oral) no requiere intervalo con ninguna.":"")),
+      cita("Manual 2025 · Recomendaciones para el intervalo de administración de vacunas.")]; }
+  // 5) Atraso / esquema interrumpido
+  if(/atras|interrump|se paso|perdio|no vino|reinici|olvid|recuper/.test(n)){ const out=[el("p",{},el("b",{},"Esquema atrasado o interrumpido:")),el("ul",{},["NO se reinicia: se aplican las dosis que faltan, sin importar cuánto tiempo pasó.","Respetar la edad mínima y el intervalo mínimo entre dosis.","Revisar edades máximas: rotavirus (1ª hasta 14 sem 6 días, última hasta 6 meses), pentavalente hasta 4 años 11 meses, DTP hasta 6 años 11 meses, BCG hasta 6 años 11 meses."].map(x=>el("li",{},x)))];
+    vs.forEach(g=>{ const x=guiaDe(g); if(x) out.push(el("div",{class:"card",style:"padding:10px"},el("b",{},x.n),x.inter?el("p",{class:"small",style:"margin:4px 0"},x.inter):null,el("ul",{class:"small"},x.esq.map(s=>el("li",{},s))))); });
+    if(!vs.length) out.push(el("p",{class:"small muted"},"Decime qué vacuna (por ejemplo «se atrasó la 2ª de neumococo») y te paso su intervalo."));
+    out.push(cita("Manual 2025 · Recupero de esquemas e intervalos mínimos.")); return out; }
+  // 6) Pregunta por edad
+  if(A!=null&&/(toca|corresponde|vacuna|recibe|aplica|lleva|calendario|nene|nena|chico|bebe|nino|nina|adulto|anos|meses)/.test(n)&&!vs.length) return respuestaEdad(A,q);
+  // 7) Una vacuna: según el tema
+  if(vs.length){ const x=guiaDe(vs[0]); if(x){ const pick=[];
+      const tema=/contraind|no se puede|no puede/.test(n)?"contra":/precauc|cuidado/.test(n)?"prec":/interval|cuanto tiempo|separ|minimo/.test(n)?"inter":/via|sitio|donde|aguja|dosis|ml|cuanto se pone/.test(n)?"via":/conserv|frio|heladera|frasco|dura/.test(n)?"cons":/efecto|reaccion|fiebre|esavi/.test(n)?"efectos":/esquema|cuando|edad|toca|cuantas/.test(n)?"esq":"";
+      if(tema==="contra") pick.push(el("b",{},"Contraindicaciones: "),el("ul",{},(x.contra||["No figura."]).map(s=>el("li",{},s))),x.prec?el("div",{},el("b",{},"Precauciones: "),el("ul",{},x.prec.map(s=>el("li",{},s)))):null);
+      else if(tema==="prec") pick.push(el("b",{},"Precauciones: "),el("ul",{},(x.prec||["No figuran precauciones especiales."]).map(s=>el("li",{},s))));
+      else if(tema==="inter") pick.push(el("p",{},x.inter||"El manual no fija un intervalo especial: usar el del esquema."),el("ul",{},x.esq.map(s=>el("li",{},s))));
+      else if(tema==="via") pick.push(el("p",{},el("b",{},"Vía: "),x.via,el("br"),el("b",{},"Sitio: "),x.sitio,el("br"),el("b",{},"Dosis: "),x.dosis,el("br"),el("b",{},"Aguja: "),x.aguja));
+      else if(tema==="cons") pick.push(el("p",{},x.cons||"Entre 2 y 8 °C."));
+      else if(tema==="efectos") pick.push(el("p",{},x.efectos||"Ver ficha."),el("p",{class:"small"},"Si hay un evento grave, notificalo como ESAVI en SISA dentro de 48 h."));
+      else if(tema==="esq") pick.push(el("ul",{},x.esq.map(s=>el("li",{},s))),x.inter?el("p",{class:"small"},el("b",{},"Intervalos y edades límite: "),x.inter):null);
+      if(pick.length) return [el("p",{},el("b",{},x.n)),...pick,cita("Manual de Vacunación Salta 2025 · "+x.n+"."),el("button",{class:"btn ghost sm",type:"button",onclick:()=>abrirGuia(x.g)},"Ver ficha completa")];
+      return [fichaGuia(x),cita("Manual de Vacunación Salta 2025 · "+x.n+".")]; } }
+  // 8) Búsqueda libre en la guía
+  const ws=n.split(" ").filter(w=>w.length>=4); const hits=[];
+  GUIA_GENERAL.forEach(([ti,arr])=>arr.forEach(s=>{ const k=ws.filter(w=>norm(s).includes(w)).length; if(k) hits.push([k,ti,s]); }));
+  GUIA.forEach(x=>[...(x.esq||[]),...(x.contra||[]),...(x.prec||[]),x.inter,x.notas,x.cons].filter(Boolean).forEach(s=>{ const k=ws.filter(w=>norm(s).includes(w)).length; if(k) hits.push([k,x.n,s]); }));
+  hits.sort((a,b)=>b[0]-a[0]);
+  if(hits.length) return [el("p",{},"Esto es lo que encontré en la guía:"),el("ul",{},hits.slice(0,5).map(h=>el("li",{},el("b",{},h[1]+": "),h[2]))),cita("Manual de Vacunación Salta 2025.")];
+  return [el("p",{},"No encontré una respuesta para eso. Probá con el nombre de la vacuna, una edad («6 meses»), «embarazada», «intervalo», «cadena de frío» o el DNI de un paciente."),el("p",{class:"small muted"},"Esta ayuda funciona sin internet y no reemplaza al manual ni al criterio del equipo de salud.")];
+}
+function abrirAsistente(pre){
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const q=el("input",{type:"search",id:"as-q",placeholder:"Ej.: ¿qué le toca a un bebé de 6 meses?",style:"min-height:48px",enterkeyhint:"search",value:pre||""});
+  const res=el("div",{class:"card",id:"as-res",style:"display:flex;flex-direction:column;gap:6px"});
+  const hacer=()=>{ res.replaceChildren(...responder(q.value).filter(Boolean)); };
+  const form=el("form",{class:"toolbar",style:"flex-wrap:nowrap"},q,el("button",{class:"btn",type:"submit"},"Preguntar"));
+  form.addEventListener("submit",e=>{ e.preventDefault(); hacer(); q.blur(); });
+  c.append(el("p",{class:"small muted",style:"margin:0"},"Respuestas del Manual de Vacunación Salta 2025 y del calendario de la app. Funciona sin internet y no envía datos a ningún lado."),form,
+    el("div",{class:"chips"},PREG_FREC.map(t=>el("button",{class:"chip",type:"button",style:"cursor:pointer;border:0;background:var(--accent-soft);color:var(--accent);padding:6px 10px;white-space:normal;text-align:left",onclick:()=>{ q.value=t.includes("(escribí")?"¿Qué le falta a ":t; if(t.includes("(escribí")){ q.focus(); return; } hacer(); }},t))),
+    res, el("button",{class:"btn ghost",type:"button",onclick:()=>abrirGuia()},"📖 Ver la Guía de vacunas completa"));
+  if(pre) hacer(); else res.replaceChildren(el("p",{class:"muted"},"Escribí una pregunta o tocá una de arriba."));
+  abrirOverlay("Consultas sobre vacunas",c); setTimeout(()=>{ if(!pre) q.focus(); },100);
+}
+
+function verGuiaRapida(g){ const x=guiaDe(g); if(!x){ toast("No hay ficha para esa vacuna"); return; }
+  const fondo=el("div",{class:"hoja-fondo"}); const cerrar=()=>fondo.remove();
+  fondo.append(el("div",{class:"hoja",style:"max-height:85vh;overflow:auto"},fichaGuia(x),el("button",{class:"btn",type:"button",onclick:cerrar},"Cerrar")));
+  fondo.addEventListener("click",e=>{ if(e.target===fondo) cerrar(); }); document.body.append(fondo); }
 function faltaPrevia(p,rule){ if(rule.tipo||rule.cond) return null; const idx=CAL.indexOf(rule); const ap=p.aplicadas||{};
   const prev=CAL.slice(0,idx).filter(r=>r.vac===rule.vac&&!r.tipo&&!r.cond&&!r.zona&&!ap[r.id]&&!(r.cubiertoPor&&r.cubiertoPor.some(k=>ap[k]))&&["atrasada","pendiente"].includes(estadoDosis(p,r).e));
   return prev.length?prev.map(r=>r.dosis).join(", "):null; }
@@ -2084,6 +2309,7 @@ async function hash(t){ try{ const b=await crypto.subtle.digest("SHA-256",new Te
 /* ===================== PESTAÑA: CALENDARIO ===================== */
 function vCalendario(v){
   v.append(el("h2",{},"Calendario que usa la app"));
+  v.append(el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>abrirGuia()},"📖 Guía de vacunas"),el("button",{class:"btn ghost",onclick:()=>abrirAsistente()},"💬 Consultas")));
   v.append(el("div",{class:"note"},"Basado en el Calendario Nacional de Vacunación y en el Manual de Vacunación 2025 de la Provincia de Salta (edades, intervalos mínimos, recupero de esquemas y grupos de riesgo). Revisalo con el documento oficial y avisame si algo cambió, así lo corrijo."));
   v.append(el("div",{class:"card"},el("h3",{},"Vacunas según la zona"),
     el("label",{class:"check"},el("input",{type:"checkbox",id:"z-fa",checked:S.ajustes.fa,onchange:e=>{S.ajustes.fa=e.target.checked;save();}})," Fiebre amarilla (en Salta: Orán, San Martín, Anta y Rivadavia)"),
