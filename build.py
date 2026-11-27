@@ -15,12 +15,21 @@ head='''<!doctype html>
 '''
 tail='''
 <script>
-if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+window.APP_VER="%s";
+// Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
+if("serviceWorker" in navigator){
+  let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
+  const recargar=()=>{ const ov=document.getElementById("overlay"); if(ov&&!ov.hidden){ pendiente=true; return; } location.reload(); };
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(!habiaControl){ habiaControl=true; return; } try{ sessionStorage.setItem("recienActualizada","1"); }catch(e){} recargar(); });
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{}); else if(pendiente) location.reload(); });
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>{ r.update().catch(()=>{}); setInterval(()=>r.update().catch(()=>{}),30*60*1000); }).catch(()=>{}));
+}
+try{ if(sessionStorage.getItem("recienActualizada")){ sessionStorage.removeItem("recienActualizada"); setTimeout(()=>window.toast&&toast("La app se actualizó a la última versión"),1500); } }catch(e){}
 </script>
 </body></html>
 '''
-open('index.html','w').write(head+src+tail)
-json.dump({"name":"Vacunatorio Tres Cerritos","short_name":"Vacunatorio","lang":"es-AR","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f3f6f5","theme_color":"#0a4fa8",
+open('index.html','w').write(head+src+tail.replace('%s',VER,1))
+json.dump({"name":"Vacunatorio · CS N° 41 Tres Cerritos","short_name":"Vacunatorio","lang":"es-AR","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f3f6f5","theme_color":"#0a4fa8",
  "id":"./","description":"Control de vacunas faltantes, registro de aplicaciones, escuelas y visitas domiciliarias.","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]},open('manifest.json','w'),ensure_ascii=False,indent=1)
 open('sw.js','w').write('''// Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
 const APP="vacunatorio-%s", TILES="mapa-tiles-v1", MAX_TILES=3000;
@@ -39,7 +48,7 @@ self.addEventListener("fetch",e=>{
       try{ const r=await fetch(e.request); if(r.ok){ c.put(e.request,r.clone()); recortar(); } return r; }catch(_){ return new Response("",{status:504}); } }));
     return;
   }
-  if(e.request.mode==="navigate"){ e.respondWith(fetch(e.request).then(r=>{ const cp=r.clone(); caches.open(APP).then(c=>c.put("index.html",cp)); return r; }).catch(()=>caches.match("index.html"))); return; }
+  if(e.request.mode==="navigate"){ e.respondWith(fetch(e.request.url,{cache:"no-cache"}).then(r=>{ const cp=r.clone(); caches.open(APP).then(c=>c.put("index.html",cp)); return r; }).catch(()=>caches.match("index.html"))); return; }
   e.respondWith(caches.match(e.request).then(hit=>hit||fetch(e.request).then(r=>{ if(r.ok&&(u.origin===location.origin||u.hostname==="cdnjs.cloudflare.com")){ const cp=r.clone(); caches.open(APP).then(c=>c.put(e.request,cp)); } return r; })));
 });
 '''%VER)

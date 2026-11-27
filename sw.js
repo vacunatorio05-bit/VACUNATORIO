@@ -1,5 +1,5 @@
 // Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
-const APP="vacunatorio-0aaae08fe1", TILES="mapa-tiles-v1", MAX_TILES=3000;
+const APP="vacunatorio-2f4fcc477f", TILES="mapa-tiles-v1", MAX_TILES=3000;
 const ARCHIVOS=["./","index.html","manifest.json","icon-192.png","icon-512.png","icon-maskable-512.png",
  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
@@ -15,6 +15,6 @@ self.addEventListener("fetch",e=>{
       try{ const r=await fetch(e.request); if(r.ok){ c.put(e.request,r.clone()); recortar(); } return r; }catch(_){ return new Response("",{status:504}); } }));
     return;
   }
-  if(e.request.mode==="navigate"){ e.respondWith(fetch(e.request).then(r=>{ const cp=r.clone(); caches.open(APP).then(c=>c.put("index.html",cp)); return r; }).catch(()=>caches.match("index.html"))); return; }
+  if(e.request.mode==="navigate"){ e.respondWith(fetch(e.request.url,{cache:"no-cache"}).then(r=>{ const cp=r.clone(); caches.open(APP).then(c=>c.put("index.html",cp)); return r; }).catch(()=>caches.match("index.html"))); return; }
   e.respondWith(caches.match(e.request).then(hit=>hit||fetch(e.request).then(r=>{ if(r.ok&&(u.origin===location.origin||u.hostname==="cdnjs.cloudflare.com")){ const cp=r.clone(); caches.open(APP).then(c=>c.put(e.request,cp)); } return r; })));
 });
