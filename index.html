@@ -148,6 +148,9 @@ nav.tabs button[aria-current="true"] svg{background:var(--accent-soft);border-ra
 .sugs{display:flex;flex-direction:column;margin-top:4px}
 .sugs .row{border-radius:10px;border:0;background:var(--gray-soft);margin-top:6px}
 .qa-ic{flex:none;width:44px;height:44px;border-radius:12px;color:#fff;font-size:1.5rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+.cond-grid{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.cond-grid .check{font-weight:400;padding:6px 0;font-size:.95rem}
+.cond-grid .check input{width:22px;height:22px;min-height:0;flex:none}
 .fecha-ok{color:var(--ok);font-weight:700}
 @media (prefers-reduced-motion:no-preference){.row,.btn{transition:background .15s}}
 </style>
@@ -197,7 +200,7 @@ const CAL = [
   {id:"mening2", vac:"Meningococo ACWY", dosis:"2ª", edad:5, max:23, grupo:"5 meses"},
   {id:"quin3", vac:"Quíntuple (pentavalente)", dosis:"3ª", edad:6, max:83, grupo:"6 meses"},
   {id:"ipv3", vac:"IPV (Salk)", dosis:"3ª", edad:6, max:83, grupo:"6 meses"},
-  {id:"gripe_ninos", vac:"Antigripal", dosis:"Anual (6 a 24 meses)", tipo:"anual", edad:6, max:24, grupo:"6 meses"},
+  {id:"gripe_ninos", vac:"Antigripal", dosis:"Anual (6 a 24 meses)", tipo:"anual", familia:"gripe", edad:6, max:24, grupo:"6 meses"},
   {id:"neumo_ref", vac:"Neumococo conjugada", dosis:"Refuerzo", edad:12, max:59, grupo:"12 meses"},
   {id:"hepa", vac:"Hepatitis A", dosis:"Única", edad:12, max:155, grupo:"12 meses"},
   {id:"tv1", vac:"Triple viral (SRP)", dosis:"1ª", edad:12, nacidoDesde:1965, grupo:"12 meses"},
@@ -216,12 +219,30 @@ const CAL = [
   {id:"hb_adol", vac:"Hepatitis B", dosis:"Esquema 3 dosis (si no lo tiene)", edad:132, cubiertoPor:["quin3"], grupo:"11 años"},
   {id:"dengue", vac:"Dengue", dosis:"2 dosis (zonas priorizadas)", edad:180, max:479, zona:"dengue", grupo:"15 a 39 años"},
   {id:"dt", vac:"Doble adultos (dT)", dosis:"Refuerzo cada 10 años", tipo:"cada10", edad:192, cuentan:["dtpa11","dt"], grupo:"Adultos"},
-  {id:"gripe_65", vac:"Antigripal", dosis:"Anual (65 años y más)", tipo:"anual", edad:780, grupo:"65 años y más"},
+  {id:"gripe_65", vac:"Antigripal", dosis:"Anual (65 años y más)", tipo:"anual", familia:"gripe", edad:780, grupo:"65 años y más"},
+  {id:"gripe_riesgo", vac:"Antigripal", dosis:"Anual (2 a 64 años con factor de riesgo)", tipo:"anual", familia:"gripe", cond:"riesgo", edad:24, max:779, grupo:"Factores de riesgo"},
+  {id:"gripe_ps", vac:"Antigripal", dosis:"Anual (personal de salud)", tipo:"anual", familia:"gripe", cond:"personal_salud", edad:192, grupo:"Personal de salud"},
+  {id:"gripe_estr", vac:"Antigripal", dosis:"Anual (personal estratégico)", tipo:"anual", familia:"gripe", cond:"estrategico", edad:192, grupo:"Personal esencial / estratégico"},
   {id:"neumo_65", vac:"Neumococo conjugada", dosis:"Única (65 años y más)", edad:780, grupo:"65 años y más"},
   {id:"emb_dtpa", vac:"Triple bacteriana acelular (dTpa)", dosis:"Cada embarazo (desde sem. 20)", cond:"embarazada", edad:0, grupo:"Embarazo"},
-  {id:"emb_gripe", vac:"Antigripal", dosis:"En el embarazo", cond:"embarazada", edad:0, grupo:"Embarazo"},
+  {id:"emb_gripe", vac:"Antigripal", dosis:"En el embarazo", cond:"embarazada", familia:"gripe", edad:0, grupo:"Embarazo"},
   {id:"emb_vsr", vac:"VSR (virus sincicial)", dosis:"Sem. 32 a 36", cond:"embarazada", edad:0, grupo:"Embarazo"},
+  {id:"puerp_gripe", vac:"Antigripal", dosis:"Puerperio (hasta 10 días, si no la recibió embarazada)", cond:"puerpera", familia:"gripe", cubiertoPor:["emb_gripe"], edad:0, grupo:"Puerperio"},
 ];
+
+/* ===================== CONDICIONES DEL PACIENTE ===================== */
+// "indica": si ese factor de riesgo indica antigripal (2 a 64 años) según los lineamientos nacionales.
+const RIESGOS=[["diabetes","Diabetes",true],["respiratoria","Enfermedad respiratoria crónica (EPOC, asma moderada/grave…)",true],["cardiaca","Enfermedad cardíaca (insuficiencia, coronaria, valvulopatía, congénita)",true],
+  ["renal","Insuficiencia renal crónica (diálisis o próxima a diálisis)",true],["inmuno","Inmunodepresión (VIH, oncológico, trasplante, corticoides altas dosis)",true],["obesidad","Obesidad mórbida (IMC mayor a 40)",true],
+  ["neuro","Enf. neuromuscular, retraso madurativo grave o síndrome genético",true],["hta","Hipertensión arterial",false],["hipotiroidismo","Hipotiroidismo",false],["hipertiroidismo","Hipertiroidismo",false],["otra","Otra enfermedad crónica",false]];
+const GRUPOS_P=[["puerpera","Puérpera"],["personal_salud","Personal de salud"],["estrategico","Personal esencial / estratégico"]];
+function tieneCond(p,k){
+  if(k==="embarazada") return !!p.embarazada;
+  if(k==="riesgo") return (p.riesgos||[]).some(x=>{const r=RIESGOS.find(y=>y[0]===x); return r&&r[2];});
+  return !!(p.grupos||[]).includes(k);
+}
+function etiquetasCond(p){ const out=[]; if(p.embarazada) out.push("Embarazada"); (p.grupos||[]).forEach(k=>{const g=GRUPOS_P.find(x=>x[0]===k); if(g) out.push(g[1]);});
+  (p.riesgos||[]).forEach(k=>{const r=RIESGOS.find(x=>x[0]===k); if(r) out.push(r[1].split(" (")[0]);}); if(p.riesgoOtro) out.push(p.riesgoOtro); return out; }
 
 /* ===================== DATOS ===================== */
 const KEY="vacunatorio_tc_v1";
@@ -273,14 +294,15 @@ function fechaDesde(v){
 // estados: ok, atrasada, pendiente, proxima, futura, fuera, nocorresponde
 function estadoDosis(p,r){
   const m=edadMeses(p.nac); if(m==null) return {e:"nocorresponde"};
-  if(r.cond && !p[r.cond]) return {e:"nocorresponde"};
+  if(r.cond && !tieneCond(p,r.cond)) return {e:"nocorresponde"};
   if(r.zona && !S.ajustes[r.zona]) return {e:"nocorresponde"};
   const nacY=parseISO(p.nac).getFullYear();
   if(r.nacidoDesde && nacY<r.nacidoDesde) return {e:"nocorresponde"};
   const ap=p.aplicadas||{};
   if(r.tipo==="anual"){
     if(m<r.edad || (r.max!=null && m>r.max)) return {e:"nocorresponde"};
-    const f=parseISO(ap[r.id]); if(f && f.getFullYear()===hoy.getFullYear()) return {e:"ok",f:ap[r.id]};
+    const ids=r.familia?CAL.filter(x=>x.familia===r.familia).map(x=>x.id):[r.id];
+    const f=ids.map(k=>parseISO(ap[k])).filter(Boolean).sort((a,b)=>b-a)[0]; if(f && f.getFullYear()===hoy.getFullYear()) return {e:"ok",f:iso(f)};
     return {e:"pendiente"};
   }
   if(r.tipo==="cada10"){
@@ -289,7 +311,7 @@ function estadoDosis(p,r){
     if(fechas[0] && addMonths(fechas[0],120)>hoy) return {e:"ok",f:iso(fechas[0]),vence:iso(addMonths(fechas[0],120))};
     return {e:fechas[0]?"atrasada":"pendiente"};
   }
-  if(r.cond){ return ap[r.id]? {e:"ok",f:ap[r.id]} : {e:"pendiente"}; }
+  if(r.cond){ if(ap[r.id]) return {e:"ok",f:ap[r.id]}; if(r.cubiertoPor&&r.cubiertoPor.some(k=>ap[k])) return {e:"ok",cubierto:true}; if(m<r.edad||(r.max!=null&&m>r.max)) return {e:"nocorresponde"}; return {e:"pendiente"}; }
   if(ap[r.id]) return {e:"ok",f:ap[r.id]};
   if(r.cubiertoPor && r.cubiertoPor.some(k=>ap[k])) return {e:"ok",cubierto:true};
   const due=addMonths(parseISO(p.nac),r.edad);
@@ -299,7 +321,8 @@ function estadoDosis(p,r){
 }
 function resumen(p){
   const out={atrasada:[],pendiente:[],proxima:[],ok:0};
-  CAL.forEach(r=>{ const s=estadoDosis(p,r); if(s.e==="ok") out.ok++; else if(out[s.e]) out[s.e].push(r); });
+  const fam=new Set();
+  CAL.forEach(r=>{ const s=estadoDosis(p,r); if(s.e==="ok") out.ok++; else if(out[s.e]){ if(r.familia&&r.tipo==="anual"){ if(fam.has(r.familia)) return; fam.add(r.familia); } out[s.e].push(r); } });
   out.faltan=out.atrasada.length+out.pendiente.length;
   return out;
 }
@@ -374,9 +397,9 @@ function vPendientes(v){
     el("div",{class:"stat warn"},el("b",{},pen),el("span",{},"les toca ahora")),
     el("div",{class:"stat ok"},el("b",{},al),el("span",{},"al día"))));
   const sel=el("select",{id:"f-pend","aria-label":"Filtrar por edad",onchange:e=>{filtroPend=e.target.value;render();}},
-    ...[["todos","Todas las edades"],["ninos","Niños (0 a 10 años)"],["adol","Adolescentes (11 a 17)"],["adultos","Adultos (18 a 64)"],["mayores","65 años y más"],["emb","Embarazadas"],["pronto","Les toca en los próximos 30 días"]].map(([k,t])=>el("option",{value:k,selected:filtroPend===k},t)));
+    ...[["todos","Todas las edades"],["ninos","Niños (0 a 10 años)"],["adol","Adolescentes (11 a 17)"],["adultos","Adultos (18 a 64)"],["mayores","65 años y más"],["emb","Embarazadas"],["puerp","Puérperas"],["riesgo","Con factores de riesgo"],["sinriesgo","Sin factores de riesgo"],["ps","Personal de salud"],["estr","Personal esencial / estratégico"],["pronto","Les toca en los próximos 30 días"]].map(([k,t])=>el("option",{value:k,selected:filtroPend===k},t)));
   v.append(sel);
-  const okEdad=(p)=>{const m=edadMeses(p.nac)??-1; return ({todos:true,ninos:m<132,adol:m>=132&&m<216,adultos:m>=216&&m<780,mayores:m>=780,emb:!!p.embarazada,pronto:true})[filtroPend];};
+  const okEdad=(p)=>{const m=edadMeses(p.nac)??-1; return ({todos:true,ninos:m<132,adol:m>=132&&m<216,adultos:m>=216&&m<780,mayores:m>=780,emb:!!p.embarazada,puerp:tieneCond(p,"puerpera"),riesgo:!!(p.riesgos||[]).length,sinriesgo:!(p.riesgos||[]).length,ps:tieneCond(p,"personal_salud"),estr:tieneCond(p,"estrategico"),pronto:true})[filtroPend];};
   let lista=res.filter(x=>okEdad(x.p) && (filtroPend==="pronto"? x.r.proxima.length : x.r.faltan));
   lista.sort((a,b)=>b.r.atrasada.length-a.r.atrasada.length||b.r.faltan-a.r.faltan||nombreCompleto(a.p).localeCompare(nombreCompleto(b.p)));
   if(!lista.length){ v.append(el("div",{class:"card"},el("p",{},S.pacientes.length?"Nadie en este grupo tiene vacunas pendientes.":"Todavía no hay pacientes. Cargalos en la pestaña Pacientes o importá un Excel."))); }
@@ -414,7 +437,8 @@ function abrirPaciente(id){
   const cuerpo=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
   cuerpo.append(el("div",{class:"card"},
     el("div",{},el("b",{},edadTexto(edadMeses(p.nac)))," · nació el "+fmt(p.nac)),
-    el("div",{class:"small muted"},[p.dni&&"DNI "+p.dni,p.domicilio,p.telefono&&"Tel. "+p.telefono,p.escuela&&(p.escuela+" "+p.curso),p.embarazada&&"Embarazada"].filter(Boolean).join(" · ")),
+    el("div",{class:"small muted"},[p.dni&&"DNI "+p.dni,p.domicilio,p.telefono&&"Tel. "+p.telefono,p.escuela&&(p.escuela+" "+p.curso)].filter(Boolean).join(" · ")),
+    etiquetasCond(p).length?el("div",{class:"chips"},etiquetasCond(p).map(t=>el("span",{class:"chip ex"},t))):el("div",{class:"small muted"},"Sin factores de riesgo cargados"),
     el("div",{class:"chips"},
       el("span",{class:"chip bad"},r.atrasada.length+" atrasadas"),
       el("span",{class:"chip warn"},r.pendiente.length+" le tocan ahora"),
@@ -473,7 +497,6 @@ function editarPaciente(id, base){
     campo("domicilio","Domicilio",{}),
     campo("escuela","Escuela",{list:"escuelas-list"}),
     campo("curso","Curso / grado",{placeholder:"Ej.: 1° grado A"}),
-    el("label",{class:"check full"},el("input",{type:"checkbox",id:"p-embarazada",checked:!!p.embarazada}),"Embarazada"),
     el("datalist",{id:"escuelas-list"},[...new Set(S.pacientes.map(x=>x.escuela).filter(Boolean))].map(e=>el("option",{value:e})))));
   let otro=false;
   const form=el("form",{class:"form card"},
@@ -481,6 +504,13 @@ function editarPaciente(id, base){
     campo("apellido","Apellido",{required:true,autocapitalize:"characters",autocomplete:"off"}),
     campo("nombre","Nombre",{required:true,autocapitalize:"words",autocomplete:"off"}),
     el("label",{},"Fecha de nacimiento",fechaIn,edadInfo),
+    el("details",{class:"full",open:!!(p.embarazada||(p.grupos||[]).length||(p.riesgos||[]).length)},el("summary",{},"Condición y factores de riesgo"),
+      el("div",{class:"cond-grid"},
+        el("label",{class:"check"},el("input",{type:"checkbox",id:"p-embarazada",checked:!!p.embarazada}),"Embarazada"),
+        GRUPOS_P.map(([k,t])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-grupo",value:k,checked:(p.grupos||[]).includes(k)}),t)),
+        el("div",{class:"small muted",style:"margin-top:6px;font-weight:700"},"Factores de riesgo (podés marcar varios)"),
+        RIESGOS.map(([k,t])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-riesgo",value:k,checked:(p.riesgos||[]).includes(k)}),t)),
+        el("input",{id:"p-riesgoOtro",placeholder:"¿Cuál otra enfermedad? (opcional)",value:p.riesgoOtro||""}))),
     mas,
     el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit",onclick:()=>{otro=false;}},"Guardar"),
       !id?el("button",{class:"btn ghost",type:"submit",onclick:()=>{otro=true;}},"Guardar y cargar otro"):null));
@@ -490,6 +520,9 @@ function editarPaciente(id, base){
     ["apellido","nombre","tipodoc","dni","sexo","telefono","domicilio","escuela","curso"].forEach(k=>p[k]=form.querySelector("#p-"+k).value.trim());
     p.apellido=p.apellido.toUpperCase(); p.nac=nac;
     p.embarazada=form.querySelector("#p-embarazada").checked;
+    p.grupos=[...form.querySelectorAll(".p-grupo:checked")].map(x=>x.value);
+    p.riesgos=[...form.querySelectorAll(".p-riesgo:checked")].map(x=>x.value);
+    p.riesgoOtro=form.querySelector("#p-riesgoOtro").value.trim();
     if(!id){ const dup=p.dni&&S.pacientes.find(x=>x.dni===p.dni); if(dup){ toast("Ya hay un paciente con ese DNI"); return; } S.pacientes.push(p); }
     save();
     if(otro){ toast("Guardado: "+nombreCompleto(p)); editarPaciente(null,{escuela:p.escuela,curso:p.curso,domicilio:""}); return; }
@@ -605,12 +638,12 @@ function abrirInforme(){
   MES_INF=MES_INF||iso(hoy).slice(0,7);
   const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
   c.append(el("label",{class:"small muted",style:"display:flex;flex-direction:column;gap:4px"},"Mes",el("input",{type:"month",id:"inf-mes",value:MES_INF,max:iso(hoy).slice(0,7),onchange:e=>{MES_INF=e.target.value||iso(hoy).slice(0,7);abrirInforme();}})));
-  const filas={}; let total=0, emb=0, esavi=0; const lugares={};
+  const filas={}; let total=0, emb=0, esavi=0; const lugares={}, conds={};
   S.pacientes.forEach(p=>(p.historial||[]).forEach(h=>{ if(!h.fecha||h.fecha.slice(0,7)!==MES_INF) return;
     const r=CAL.find(x=>x.id===h.dosis); if(!r) return; const m=edadMeses(p.nac,parseISO(h.fecha)); const g=GRUPOS_EDAD.findIndex(x=>m!=null&&m>=x[1]&&m<=x[2]);
     const k=r.vac+"||"+r.dosis; filas[k]=filas[k]||{vac:r.vac,dosis:r.dosis,g:GRUPOS_EDAD.map(()=>0),sin:0,t:0};
     if(g>=0) filas[k].g[g]++; else filas[k].sin++; filas[k].t++; total++;
-    if(h.condicion==="Embarazo / puerperio"||r.cond) emb++; if(h.esavi) esavi++; const lg=h.lugar||"Sin dato"; lugares[lg]=(lugares[lg]||0)+1; }));
+    if(h.condicion==="Embarazo / puerperio"||r.cond==="embarazada") emb++; const cd=h.condicion||"Sin dato"; conds[cd]=(conds[cd]||0)+1; if(h.esavi) esavi++; const lg=h.lugar||"Sin dato"; lugares[lg]=(lugares[lg]||0)+1; }));
   const lista=Object.values(filas).sort((a,b)=>a.vac.localeCompare(b.vac)||a.dosis.localeCompare(b.dosis));
   const visitasMes=(S.visitas||[]).filter(x=>x.fecha&&x.fecha.slice(0,7)===MES_INF).length;
   c.append(el("div",{class:"stats"},el("div",{class:"stat"},el("b",{},total),el("span",{},"dosis aplicadas")),el("div",{class:"stat"},el("b",{},visitasMes),el("span",{},"visitas")),el("div",{class:"stat"},el("b",{},esavi),el("span",{},"ESAVI anotados"))));
@@ -620,8 +653,9 @@ function abrirInforme(){
       el("tr",{},["Vacuna","Dosis",...GRUPOS_EDAD.map(g=>g[0]),"Total"].map(h=>el("th",{},h))),
       lista.map(f=>el("tr",{},[f.vac,f.dosis,...f.g.map(n=>n||""),f.t].map((x,i)=>el("td",{style:i>1?"text-align:right;font-variant-numeric:tabular-nums":""},x)))),
       el("tr",{},[el("b",{},"Total"),"",...GRUPOS_EDAD.map((_,i)=>lista.reduce((t,f)=>t+f.g[i],0)||""),el("b",{},total)].map(x=>el("td",{style:"text-align:right"},x)))))));
+    c.append(el("div",{class:"card"},el("h3",{},"Por condición"),el("div",{class:"chips"},Object.entries(conds).sort((a,b)=>b[1]-a[1]).map(([k,n])=>el("span",{class:"chip ex"},k+": "+n)))));
     c.append(el("div",{class:"chips"},el("span",{class:"chip"},"Embarazadas: "+emb),Object.entries(lugares).map(([k,n])=>el("span",{class:"chip"},k+": "+n))));
-    c.append(el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>exportarFilas(lista.map(f=>{const o={Vacuna:f.vac,Dosis:f.dosis}; GRUPOS_EDAD.forEach((g,i)=>o[g[0]]=f.g[i]); o.Total=f.t; return o;}),"informe_"+MES_INF)},"Descargar informe en Excel")));
+    c.append(el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>exportarFilas(lista.map(f=>{const o={Vacuna:f.vac,Dosis:f.dosis}; GRUPOS_EDAD.forEach((g,i)=>o[g[0]]=f.g[i]); o.Total=f.t; return o;}).concat([{}],Object.entries(conds).map(([k,n])=>({Vacuna:"Condición: "+k,Total:n}))),"informe_"+MES_INF)},"Descargar informe en Excel")));
   }
   c.append(el("p",{class:"small muted"},"Cuenta las aplicaciones registradas en esta app (con fecha en el mes elegido). La edad es la que tenía el paciente el día de la aplicación."));
   abrirOverlay("Informe mensual",c);
@@ -666,6 +700,7 @@ function unirCopia(d){
     let cambio=false;
     ["apellido","nombre","tipodoc","nac","sexo","domicilio","telefono","escuela","curso","lat","lng"].forEach(k=>{ if((p[k]==null||p[k]==="")&&q[k]!=null&&q[k]!==""){ p[k]=q[k]; cambio=true; } });
     if(q.embarazada&&!p.embarazada){p.embarazada=true;cambio=true;}
+    ["grupos","riesgos"].forEach(k=>{ const u=[...new Set([...(p[k]||[]),...(q[k]||[])])]; if(u.length!==(p[k]||[]).length){ p[k]=u; cambio=true; } });
     p.historial=p.historial||[];
     (q.historial||[]).forEach(h=>{ if(!p.historial.some(x=>x.rid===h.rid||(x.dosis===h.dosis&&x.fecha===h.fecha))){ p.historial.push(Object.assign({},h)); res.vacunas++; cambio=true; } });
     Object.entries(q.aplicadas||{}).forEach(([id,f])=>{ const a=p.aplicadas=p.aplicadas||{}; if(!a[id]||a[id]<f){ a[id]=f; cambio=true; } });
@@ -730,7 +765,7 @@ function pasoVacuna(p, previo){
     if(!previo&&act.length&&!lote.dataset.tocado) lote.value=act[0].l.lote; if(!act.length&&!lote.dataset.tocado&&!previo) lote.value="";
     stockInfo.textContent=act.length?"En stock: "+act.map(x=>x.l.lote+" ("+x.e.st+", vence "+fmt(x.l.vence)+")").join(" · "):""; }
   lote.addEventListener("input",()=>lote.dataset.tocado="1");
-  const cond=el("select",{id:"fr-cond"},CONDICIONES.map(x=>el("option",{value:x,selected:previo?previo.condicion===x:(p.embarazada?x==="Embarazo / puerperio":x==="Calendario nacional")},x)));
+  const cond=el("select",{id:"fr-cond"},CONDICIONES.map(x=>el("option",{value:x,selected:previo?previo.condicion===x:x===condSugerida(p,sugerida)},x)));
   const est=el("input",{id:"fr-est",value:previo?previo.establecimiento:(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos")});
   const vacunador=el("input",{id:"fr-vacunador",value:previo?previo.vacunador:(S.ajustes.vacunador||"")});
   const form=el("form",{class:"form card"},
@@ -820,7 +855,9 @@ function abrirCatalogo(){
 
 /* ===================== REGISTRO DE APLICACIONES ===================== */
 const LUGARES=["Vacunatorio","Escuela","Visita domiciliaria","Campaña / operativo","Otro"];
-const CONDICIONES=["Calendario nacional","Embarazo / puerperio","Personal de salud","Personal estratégico","Grupo de riesgo","Campaña","Viajero","Otra"];
+const CONDICIONES=["Calendario nacional","Embarazo / puerperio","Puerperio","Factor de riesgo","Mayor de 65 años","Personal de salud","Personal estratégico","Sin factor de riesgo","Campaña","Viajero","Otra"];
+function condSugerida(p,rule){ if(rule){ if(rule.cond==="embarazada") return "Embarazo / puerperio"; if(rule.cond==="puerpera") return "Puerperio"; if(rule.cond==="riesgo") return "Factor de riesgo"; if(rule.cond==="personal_salud") return "Personal de salud"; if(rule.cond==="estrategico") return "Personal estratégico"; if(rule.id==="gripe_65"||rule.id==="neumo_65") return "Mayor de 65 años"; }
+  if(p.embarazada) return "Embarazo / puerperio"; if(tieneCond(p,"puerpera")) return "Puerperio"; if(tieneCond(p,"riesgo")) return "Factor de riesgo"; return "Calendario nacional"; }
 function faltaPrevia(p,rule){ if(rule.tipo||rule.cond) return null; const idx=CAL.indexOf(rule); const ap=p.aplicadas||{};
   const prev=CAL.slice(0,idx).filter(r=>r.vac===rule.vac&&!r.tipo&&!r.cond&&!r.zona&&!ap[r.id]&&!(r.cubiertoPor&&r.cubiertoPor.some(k=>ap[k]))&&estadoDosis(p,r).e!=="fuera");
   return prev.length?prev.map(r=>r.dosis).join(", "):null; }
@@ -831,7 +868,7 @@ function registrarAplicacion(p,rule){
   const editando = !rule.tipo && (p.aplicadas||{})[rule.id];
   let r = editando ? ultimoRegistro(p,rule.id) : null;
   if(editando && !r){ r={rid:uid(),dosis:rule.id,fecha:p.aplicadas[rule.id],lote:"",vacunador:"",lugar:"",obs:"",esavi:false}; p.historial.push(r); }
-  const v=r||{fecha:iso(hoy),lote:"",vacunador:S.ajustes.vacunador||"",lugar:S.ajustes.lugar||"Vacunatorio",establecimiento:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",condicion:rule.cond==="embarazada"?"Embarazo / puerperio":"Calendario nacional",obs:"",esavi:false};
+  const v=r||{fecha:iso(hoy),lote:"",vacunador:S.ajustes.vacunador||"",lugar:S.ajustes.lugar||"Vacunatorio",establecimiento:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",condicion:condSugerida(p,rule),obs:"",esavi:false};
   const previa=faltaPrevia(p,rule);
   const act=lotesActivos(rule.vac,v.fecha);
   const lotes=[...new Set([...act.map(x=>x.l.lote),...S.pacientes.flatMap(x=>(x.historial||[])).filter(h=>{const rr=CAL.find(c=>c.id===h.dosis); return rr&&rr.vac===rule.vac&&h.lote;}).map(h=>h.lote)])];
