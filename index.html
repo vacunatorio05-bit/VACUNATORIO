@@ -178,7 +178,7 @@ const CAL = [
 
 /* ===================== DATOS ===================== */
 const KEY="vacunatorio_tc_v1";
-let S = {pacientes:[], visitas:[], ajustes:{fa:false, dengue:false}, pinHash:null};
+let S = {pacientes:[], visitas:[], lotes:[], ajustes:{fa:false, dengue:false}, pinHash:null};
 const hoy = new Date(); hoy.setHours(0,0,0,0);
 
 function load(){ try{ const t=localStorage.getItem(KEY); if(t){ S=Object.assign(S, JSON.parse(t)); return true;} }catch(e){} return false; }
@@ -304,6 +304,9 @@ function vPendientes(v){
   v.append(el("div",{class:"chips"},el("span",{class:"chip ex"},"Hoy: "+dosisHoy+" dosis aplicadas"),el("span",{class:"chip ex"},visHoy+" visitas"),volver?el("button",{class:"chip warn",style:"border:0;cursor:pointer",onclick:()=>setTab("visitas")},volver+" domicilios para volver"):null));
   const reales=S.pacientes.filter(p=>!p.ejemplo).length; const dias=S.ultimaCopia?Math.floor((hoy-parseISO(S.ultimaCopia))/86400000):null;
   if(reales && (dias==null||dias>=7)) v.append(el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},(dias==null?"Todavía no hiciste ninguna copia de seguridad. ":"Tu última copia de seguridad es de hace "+dias+" días. "),el("button",{class:"btn sm",onclick:()=>setTab("datos")},"Hacer copia ahora")));
+  const as=alertasStock();
+  if(as.vencidos||as.porvencer||as.poco) v.append(el("button",{class:"note",style:"border:0;text-align:left;cursor:pointer;background:var(--warn-soft);color:var(--warn);font:inherit",onclick:abrirStock},
+    "Stock: "+[as.vencidos&&as.vencidos+" lotes vencidos con dosis",as.porvencer&&as.porvencer+" lotes vencen en 30 días",as.poco&&as.poco+" lotes con poco stock"].filter(Boolean).join(" · ")+". Tocá para ver."));
   v.append(el("h2",{},"¿A quién le faltan vacunas?"));
   avisoEjemplos(v);
   v.append(el("div",{class:"stats"},
@@ -427,6 +430,81 @@ function linkWhatsApp(p,r){
   return "https://wa.me/549"+t+"?text="+encodeURIComponent(msg);
 }
 
+/* ===================== STOCK Y LOTES ===================== */
+const VACUNAS=[...new Set(CAL.map(r=>r.vac))].sort((a,b)=>a.localeCompare(b));
+const MOTIVOS_BAJA=["Vencimiento","Ruptura de cadena de frío","Frasco abierto / dosis perdidas","Rotura","Envío a otro centro","Otro"];
+const vacDe=id=>{const r=CAL.find(c=>c.id===id); return r?r.vac:"";};
+function usadas(l){ let n=0; S.pacientes.forEach(p=>(p.historial||[]).forEach(h=>{ if(h.lote&&h.lote===l.lote&&vacDe(h.dosis)===l.vacuna&&(!l.desde||h.fecha>=l.desde)) n++; })); return n; }
+function stockLote(l){ const ent=(l.movs||[]).filter(m=>m.tipo==="ingreso").reduce((a,m)=>a+m.cant,0); const baj=(l.movs||[]).filter(m=>m.tipo==="baja").reduce((a,m)=>a+m.cant,0); const u=usadas(l); return {ingresos:ent,bajas:baj,usadas:u,stock:ent-baj-u}; }
+function estadoLote(l){ const st=stockLote(l).stock; const v=parseISO(l.vence); const dias=v?Math.round((v-hoy)/86400000):null;
+  if(st<=0) return {k:"agotado",t:"Agotado",c:"",dias,st};
+  if(dias!=null&&dias<0) return {k:"vencido",t:"Vencido",c:"bad",dias,st};
+  if(dias!=null&&dias<=30) return {k:"porvencer",t:"Vence en "+dias+" días",c:"warn",dias,st};
+  if(st<10) return {k:"poco",t:"Poco stock",c:"warn",dias,st};
+  return {k:"ok",t:"En uso",c:"ok",dias,st}; }
+function alertasStock(){ const a={vencidos:0,porvencer:0,poco:0}; (S.lotes||[]).forEach(l=>{ const e=estadoLote(l); if(e.k==="vencido")a.vencidos++; if(e.k==="porvencer")a.porvencer++; if(e.k==="poco")a.poco++; }); return a; }
+function lotesActivos(vac,fecha){ return (S.lotes||[]).filter(l=>l.vacuna===vac).map(l=>({l,e:estadoLote(l)})).filter(x=>x.e.st>0&&(!x.l.vence||x.l.vence>=(fecha||iso(hoy)))).sort((a,b)=>(a.l.vence||"9")<(b.l.vence||"9")?-1:1); }
+function abrirStock(){
+  S.lotes=S.lotes||[];
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
+  const a=alertasStock();
+  c.append(el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>formLote(null)},"+ Ingreso de lote"),S.lotes.length?el("button",{class:"btn ghost sm",onclick:exportarStock},"Descargar stock en Excel"):null));
+  if(a.vencidos||a.porvencer||a.poco) c.append(el("div",{class:"chips"},a.vencidos?el("span",{class:"chip bad"},a.vencidos+" lotes vencidos con dosis"):null,a.porvencer?el("span",{class:"chip warn"},a.porvencer+" lotes vencen en 30 días"):null,a.poco?el("span",{class:"chip warn"},a.poco+" lotes con menos de 10 dosis"):null));
+  c.append(el("p",{class:"small muted"},"El stock baja solo cada vez que registrás una aplicación con ese número de lote. Las dosis perdidas o descartadas se cargan con «Dar de baja»."));
+  if(!S.lotes.length){ c.append(el("div",{class:"card"},el("p",{},"Todavía no cargaste lotes. Tocá «Ingreso de lote» cuando recibas vacunas: vacuna, número de lote, vencimiento y cantidad de dosis."))); }
+  const porVac={}; S.lotes.forEach(l=>(porVac[l.vacuna]=porVac[l.vacuna]||[]).push(l));
+  Object.keys(porVac).sort().forEach(vac=>{
+    const ls=porVac[vac].sort((x,y)=>(x.vence||"9")<(y.vence||"9")?-1:1);
+    const total=ls.reduce((t,l)=>t+Math.max(0,estadoLote(l).st),0);
+    const list=el("div",{class:"list"},el("div",{class:"group-h"},vac+" · "+total+" dosis"));
+    ls.forEach(l=>{ const e=estadoLote(l), st=stockLote(l);
+      list.append(el("button",{class:"row",onclick:()=>formLote(l)},el("div",{class:"main"},el("div",{class:"name"},"Lote "+l.lote),
+        el("div",{class:"small muted"},"Vence "+fmt(l.vence)+" · ingresaron "+st.ingresos+" · aplicadas "+st.usadas+(st.bajas?" · bajas "+st.bajas:"")),
+        el("div",{class:"chips"},el("span",{class:"chip "+e.c},e.t))),el("span",{class:"badge "+(e.c||"ok")},Math.max(0,e.st)))); });
+    c.append(list);
+  });
+  abrirOverlay("Stock de vacunas",c);
+}
+function formLote(l){
+  const nuevo=!l; const d=l||{id:uid(),vacuna:VACUNAS[0],lote:"",vence:"",desde:iso(hoy),movs:[]};
+  const st=nuevo?null:stockLote(d);
+  const form=el("form",{class:"form card"},
+    el("label",{class:"full"},"Vacuna",el("select",{id:"l-vacuna",disabled:!nuevo},VACUNAS.map(v=>el("option",{value:v,selected:d.vacuna===v},v)))),
+    el("label",{},"Número de lote",el("input",{id:"l-lote",required:true,value:d.lote,autocapitalize:"characters",readonly:!nuevo})),
+    el("label",{},"Vencimiento",el("input",{id:"l-vence",type:"date",required:true,value:d.vence})),
+    nuevo? el("label",{},"Dosis recibidas",el("input",{id:"l-cant",type:"number",min:1,required:true,inputmode:"numeric"})):null,
+    nuevo? el("label",{},"Fecha de ingreso",el("input",{id:"l-fecha",type:"date",value:iso(hoy),max:iso(hoy)})):null,
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},nuevo?"Guardar lote":"Guardar cambios")));
+  form.addEventListener("submit",e=>{ e.preventDefault();
+    if(nuevo){ const lote=form.querySelector("#l-lote").value.trim().toUpperCase(); const vac=form.querySelector("#l-vacuna").value;
+      const cant=parseInt(form.querySelector("#l-cant").value,10); if(!(cant>0)){toast("Poné la cantidad de dosis");return;}
+      const fi=form.querySelector("#l-fecha").value||iso(hoy);
+      const ex=S.lotes.find(x=>x.vacuna===vac&&x.lote===lote);
+      if(ex){ ex.movs.push({tipo:"ingreso",cant,fecha:fi}); toast("Se sumaron "+cant+" dosis al lote existente"); }
+      else { S.lotes.push({id:d.id,vacuna:vac,lote,vence:form.querySelector("#l-vence").value,desde:fi,movs:[{tipo:"ingreso",cant,fecha:fi}]}); toast("Lote cargado"); }
+    } else { d.vence=form.querySelector("#l-vence").value; toast("Guardado"); }
+    save(); abrirStock(); });
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"},form);
+  if(!nuevo){
+    c.append(el("div",{class:"card"},el("h3",{},"Stock actual: "+st.stock+" dosis"),el("p",{class:"small muted"},"Ingresaron "+st.ingresos+", se aplicaron "+st.usadas+" (registradas con este lote), bajas "+st.bajas+"."),
+      el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>movLote(d,"ingreso")},"Sumar dosis"),el("button",{class:"btn danger sm",onclick:()=>movLote(d,"baja")},"Dar de baja dosis"))));
+    if(d.movs.length) c.append(el("div",{class:"card"},el("h3",{},"Movimientos"),el("div",{class:"tbl-wrap"},el("table",{},el("tr",{},["Fecha","Tipo","Dosis","Motivo"].map(h=>el("th",{},h))),d.movs.slice().reverse().map(m=>el("tr",{},[fmt(m.fecha),m.tipo==="ingreso"?"Ingreso":"Baja",m.cant,m.motivo||""].map(x=>el("td",{},x)))))),
+      el("div",{class:"toolbar"},el("button",{class:"btn danger sm",onclick:()=>{ if(st.usadas){toast("No se puede borrar: tiene aplicaciones registradas");return;} S.lotes=S.lotes.filter(x=>x!==d); save(); abrirStock(); toast("Lote borrado"); }},"Borrar lote"))));
+  }
+  abrirOverlay(nuevo?"Ingreso de lote":d.vacuna+" · "+d.lote,c);
+}
+function movLote(l,tipo){
+  const form=el("form",{class:"form card"},
+    el("label",{},"Dosis",el("input",{id:"m-cant",type:"number",min:1,required:true,inputmode:"numeric"})),
+    el("label",{},"Fecha",el("input",{id:"m-fecha",type:"date",value:iso(hoy),max:iso(hoy)})),
+    tipo==="baja"? el("label",{class:"full"},"Motivo",el("select",{id:"m-motivo"},MOTIVOS_BAJA.map(m=>el("option",{value:m},m)))):null,
+    el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Guardar")));
+  form.addEventListener("submit",e=>{ e.preventDefault(); const cant=parseInt(form.querySelector("#m-cant").value,10); if(!(cant>0)) return;
+    l.movs.push({tipo,cant,fecha:form.querySelector("#m-fecha").value||iso(hoy),motivo:tipo==="baja"?form.querySelector("#m-motivo").value:""}); save(); toast(tipo==="baja"?"Baja registrada":"Dosis sumadas"); formLote(l); });
+  abrirOverlay((tipo==="baja"?"Dar de baja · ":"Sumar dosis · ")+l.lote,form);
+}
+function exportarStock(){ exportarFilas((S.lotes||[]).map(l=>{const st=stockLote(l),e=estadoLote(l); return {Vacuna:l.vacuna,Lote:l.lote,Vencimiento:fmt(l.vence),Ingresaron:st.ingresos,Aplicadas:st.usadas,Bajas:st.bajas,Stock:st.stock,Estado:e.t};}),"stock_vacunas_"+iso(hoy)); }
+
 /* ===================== REGISTRO DE APLICACIONES ===================== */
 const LUGARES=["Vacunatorio","Escuela","Visita domiciliaria","Campaña / operativo","Otro"];
 const CONDICIONES=["Calendario nacional","Embarazo / puerperio","Personal de salud","Personal estratégico","Grupo de riesgo","Campaña","Viajero","Otra"];
@@ -442,7 +520,9 @@ function registrarAplicacion(p,rule){
   if(editando && !r){ r={rid:uid(),dosis:rule.id,fecha:p.aplicadas[rule.id],lote:"",vacunador:"",lugar:"",obs:"",esavi:false}; p.historial.push(r); }
   const v=r||{fecha:iso(hoy),lote:"",vacunador:S.ajustes.vacunador||"",lugar:S.ajustes.lugar||"Vacunatorio",establecimiento:S.ajustes.establecimiento||"Centro de Salud Tres Cerritos",condicion:rule.cond==="embarazada"?"Embarazo / puerperio":"Calendario nacional",obs:"",esavi:false};
   const previa=faltaPrevia(p,rule);
-  const lotes=[...new Set(S.pacientes.flatMap(x=>(x.historial||[])).filter(h=>{const rr=CAL.find(c=>c.id===h.dosis); return rr&&rr.vac===rule.vac&&h.lote;}).map(h=>h.lote))];
+  const act=lotesActivos(rule.vac,v.fecha);
+  const lotes=[...new Set([...act.map(x=>x.l.lote),...S.pacientes.flatMap(x=>(x.historial||[])).filter(h=>{const rr=CAL.find(c=>c.id===h.dosis); return rr&&rr.vac===rule.vac&&h.lote;}).map(h=>h.lote)])];
+  if(!r && !v.lote && act.length) v.lote=act[0].l.lote;
   const form=el("form",{class:"form card"},
     el("div",{class:"full"},el("b",{},rule.vac)," · "+rule.dosis,el("div",{class:"small muted"},nombreCompleto(p)+(p.dni?" · DNI "+p.dni:""))),
     previa? el("div",{class:"full note",style:"background:var(--warn-soft);color:var(--warn)"},"Atención: no figura aplicada la dosis anterior ("+previa+"). Revisá el carnet antes de registrar."):null,
@@ -451,6 +531,7 @@ function registrarAplicacion(p,rule){
     el("label",{class:"full"},"Establecimiento",el("input",{id:"a-establecimiento",value:v.establecimiento||S.ajustes.establecimiento||"Centro de Salud Tres Cerritos"})),
     el("label",{},"Lote",el("input",{id:"a-lote",value:v.lote,list:"lotes-list",autocapitalize:"characters"})),
     el("datalist",{id:"lotes-list"},lotes.map(l=>el("option",{value:l}))),
+    act.length? el("div",{class:"full small muted"},"En stock: "+act.map(x=>x.l.lote+" ("+x.e.st+" dosis, vence "+fmt(x.l.vence)+")").join(" · ")) : ((S.lotes||[]).length? el("div",{class:"full small",style:"color:var(--warn)"},"No hay lotes de "+rule.vac+" con stock cargado."):null),
     el("label",{},"Vacunador/a",el("input",{id:"a-vacunador",value:v.vacunador})),
     el("label",{},"Lugar",el("select",{id:"a-lugar"},LUGARES.map(l=>el("option",{value:l,selected:v.lugar===l},l)))),
     el("label",{class:"full"},"Observaciones",el("textarea",{id:"a-obs",rows:2},v.obs||"")),
@@ -463,6 +544,8 @@ function registrarAplicacion(p,rule){
     const g=k=>form.querySelector("#a-"+k);
     const nuevo={rid:r?r.rid:uid(),dosis:rule.id,fecha:g("fecha").value,lote:g("lote").value.trim().toUpperCase(),vacunador:g("vacunador").value.trim(),lugar:g("lugar").value,establecimiento:g("establecimiento").value.trim(),condicion:g("condicion").value,obs:g("obs").value.trim(),esavi:g("esavi").checked};
     if(!nuevo.fecha){ toast("Poné la fecha"); return; }
+    const lt=(S.lotes||[]).find(l=>l.vacuna===rule.vac&&l.lote===nuevo.lote);
+    if(lt&&lt.vence&&lt.vence<nuevo.fecha&&!form.dataset.okVencido){ form.dataset.okVencido="1"; toast("Atención: ese lote estaba VENCIDO en esa fecha. Tocá Guardar otra vez para confirmar."); return; }
     if(r) Object.assign(r,nuevo); else p.historial.push(nuevo);
     recalcular(p,rule.id);
     S.ajustes.vacunador=nuevo.vacunador; S.ajustes.lugar=nuevo.lugar; S.ajustes.establecimiento=nuevo.establecimiento;
@@ -717,6 +800,8 @@ function vDatos(v){
     el("p",{class:"small"},el("b",{},"Samsung Internet: "),"tocá el menú ☰ (abajo a la derecha) → «Agregar página a» → «Pantalla de inicio». Si aparece un ícono de descarga en la barra de direcciones, tocalo y elegí «Instalar»."),
     el("p",{class:"small"},el("b",{},"Chrome: "),"tocá el menú ⋮ (arriba a la derecha) → «Instalar app» o «Agregar a la pantalla principal»."),
     el("p",{class:"small muted"},"Abrí la app una vez con internet para que quede guardada. Después funciona sin señal.")));
+  v.append(el("div",{class:"card"},el("h3",{},"Stock de vacunas"),el("p",{class:"small muted"},(S.lotes||[]).length?(S.lotes.length+" lotes cargados. "+VACUNAS.filter(x=>(S.lotes||[]).some(l=>l.vacuna===x)).map(x=>x+": "+(S.lotes||[]).filter(l=>l.vacuna===x).reduce((t,l)=>t+Math.max(0,estadoLote(l).st),0)).join(" · ")):"Cargá los lotes que recibís y el stock baja solo con cada aplicación."),
+    el("div",{class:"toolbar"},el("button",{class:"btn",onclick:abrirStock},"Ver stock y lotes"))));
   cardRegistroDia(v);
   v.append(el("div",{class:"card"},el("h3",{},"Importar pacientes desde Excel o CSV"),
     el("p",{class:"small muted"},"La planilla necesita una fila de títulos. Reconozco columnas como Apellido, Nombre, DNI, Fecha de nacimiento, Domicilio, Escuela y Curso. Si la planilla trae Vacuna, Dosis, Fecha de aplicación y Lote (como un reporte de vacunas aplicadas), también carga las vacunas. Si un DNI ya existe, se actualizan sus datos."),
@@ -725,8 +810,8 @@ function vDatos(v){
   v.append(el("div",{class:"card"},el("h3",{},"Copia de seguridad"),
     el("p",{class:"small muted"},"Los datos se guardan solo en este celular. Si borrás los datos del navegador o cambiás de teléfono, se pierden. Hacé una copia seguido y guardala en un lugar seguro."),
     el("div",{class:"toolbar"},
-      el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("copia_vacunatorio_"+iso(hoy)+".json",JSON.stringify({version:2,fecha:iso(hoy),pacientes:S.pacientes,visitas:S.visitas||[]})); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
-      el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; save(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
+      el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("copia_vacunatorio_"+iso(hoy)+".json",JSON.stringify({version:2,fecha:iso(hoy),pacientes:S.pacientes,visitas:S.visitas||[],lotes:S.lotes||[]})); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
+      el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; if(Array.isArray(d.lotes)) S.lotes=d.lotes; save(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
   const nEj=S.pacientes.filter(p=>p.ejemplo).length;
   if(nEj) v.append(el("div",{class:"card"},el("h3",{},"Pacientes de ejemplo"),el("p",{class:"small muted"},"Hay "+nEj+" pacientes inventados para mostrar la app."),el("div",{class:"toolbar"},el("button",{class:"btn danger",onclick:()=>{S.pacientes=S.pacientes.filter(p=>!p.ejemplo); S.visitas=(S.visitas||[]).filter(x=>!x.ejemplo); save(); render(); toast("Ejemplos borrados");}},"Borrar ejemplos"))));
   // PIN
