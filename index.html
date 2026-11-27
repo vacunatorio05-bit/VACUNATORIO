@@ -109,6 +109,7 @@ details summary{cursor:pointer;font-weight:700}
 <header>
   <h1>Vacunatorio Tres Cerritos</h1>
   <p id="sub">Control de vacunas faltantes · Calendario Nacional</p>
+  <button id="btn-instalar" class="btn sm" hidden style="margin-top:8px;background:var(--accent-ink);color:var(--accent);border-color:var(--accent-ink)">Instalar la app en este celular</button>
 </header>
 
 <main id="view"></main>
@@ -711,6 +712,11 @@ function vistaImport(){
 
 function vDatos(v){
   v.append(el("h2",{},"Registro, Excel y copias"));
+  if(!INSTALADA && document.querySelector('link[rel="manifest"]')) v.append(el("div",{class:"card"},el("h3",{},"Instalar la app en el celular"),
+    PROMPT_INSTALAR? el("button",{class:"btn",onclick:()=>document.getElementById("btn-instalar").click()},"Instalar ahora"):null,
+    el("p",{class:"small"},el("b",{},"Samsung Internet: "),"tocá el menú ☰ (abajo a la derecha) → «Agregar página a» → «Pantalla de inicio». Si aparece un ícono de descarga en la barra de direcciones, tocalo y elegí «Instalar»."),
+    el("p",{class:"small"},el("b",{},"Chrome: "),"tocá el menú ⋮ (arriba a la derecha) → «Instalar app» o «Agregar a la pantalla principal»."),
+    el("p",{class:"small muted"},"Abrí la app una vez con internet para que quede guardada. Después funciona sin señal.")));
   cardRegistroDia(v);
   v.append(el("div",{class:"card"},el("h3",{},"Importar pacientes desde Excel o CSV"),
     el("p",{class:"small muted"},"La planilla necesita una fila de títulos. Reconozco columnas como Apellido, Nombre, DNI, Fecha de nacimiento, Domicilio, Escuela y Curso. Si la planilla trae Vacuna, Dosis, Fecha de aplicación y Lote (como un reporte de vacunas aplicadas), también carga las vacunas. Si un DNI ya existe, se actualizan sus datos."),
@@ -754,6 +760,11 @@ function vCalendario(v){
 }
 
 /* ===================== INICIO ===================== */
+let PROMPT_INSTALAR=null;
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); PROMPT_INSTALAR=e; const b=document.getElementById("btn-instalar"); if(b) b.hidden=false; });
+window.addEventListener("appinstalled",()=>{ PROMPT_INSTALAR=null; const b=document.getElementById("btn-instalar"); if(b) b.hidden=true; toast("App instalada. Buscala en la pantalla de inicio."); });
+document.getElementById("btn-instalar").addEventListener("click",async()=>{ if(!PROMPT_INSTALAR){ setTab("datos"); return; } PROMPT_INSTALAR.prompt(); try{ await PROMPT_INSTALAR.userChoice; }catch(e){} PROMPT_INSTALAR=null; document.getElementById("btn-instalar").hidden=true; });
+const INSTALADA = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
 async function avisoDiario(){
   try{
     if(!("Notification" in window) || Notification.permission!=="granted") return;
