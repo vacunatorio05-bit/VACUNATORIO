@@ -174,6 +174,10 @@ header h1{font-size:1.15rem;line-height:1.15}
 .logo-ph{width:52px;height:52px;border:0;background:none;padding:0;cursor:pointer}
 .logo-ph svg{width:52px;height:52px}
 #logo-box{cursor:pointer}
+.hoja-fondo{position:fixed;inset:0;z-index:80;background:rgba(5,20,45,.45);display:flex;align-items:flex-end;justify-content:center}
+.hoja{background:var(--surface);color:var(--ink);width:min(520px,100%);border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+.hoja .btn{width:100%;justify-content:center}
+
 .app-logo{width:46px;height:46px;flex:none;border-radius:13px;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.25)}
 .app-logo svg{width:46px;height:46px;display:block}
 header .logo-ph{width:46px!important;height:46px!important;border-radius:13px;opacity:.9}
@@ -877,9 +881,9 @@ async function carnetPDF(p){
   doc.splitTextToSize(pend,180).forEach(l=>{ doc.text(l,14,y); y+=5; });
   y+=6; doc.setFontSize(7); doc.setTextColor(110);
   doc.splitTextToSize("Constancia generada el "+fmt(iso(hoy))+" con la app del vacunatorio a partir de los registros cargados en ella. No reemplaza el carnet oficial ni el registro en NomiVac/SISA.",180).forEach(l=>{ doc.text(l,14,y); y+=4; });
-  const nombre="carnet_"+(p.apellido||"paciente").replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g,"_")+"_"+(p.dni||"")+".pdf";
+  const nombre="Carnet_"+(p.apellido||"paciente").replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g,"_")+"_"+(p.dni||"")+"_"+iso(hoy)+".pdf";
   const blob=doc.output("blob");
-  if(downloads){ try{ await downloads.save({filename:nombre,data:blob}); toast("PDF listo"); return; }catch(e){ if(e&&(e.code==="dismissed"||e.code==="declined")) return; } }
+  if(downloads||navigator.canShare){ return guardarArchivo(nombre,blob,"application/pdf"); }
   try{ doc.save(nombre); toast("PDF descargado"); }catch(e){ toast("No se pudo descargar el PDF en este navegador"); }
 }
 
@@ -1031,7 +1035,7 @@ function abrirParaPasar(){
     el("p",{class:"muted"},"Aplicaciones registradas acá que todavía no marcaste como cargadas en el sistema oficial. Cuando la cargues allá, tocá «Ya la cargué»."));
   if(!l.length) c.append(el("div",{class:"card"},el("p",{},"No hay nada pendiente. ¡Todo al día!")));
   else {
-    c.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(l.map(x=>({Fecha:fmt(x.h.fecha),DNI:x.p.dni,Apellido:x.p.apellido,Nombre:x.p.nombre,Sexo:x.p.sexo,"Fecha nac.":fmt(x.p.nac),Vacuna:x.r?x.r.vac:x.h.dosis,Dosis:x.r?x.r.dosis:"",Esquema:x.r?x.r.grupo:"","Condición":x.h.condicion,Lote:x.h.lote,Establecimiento:x.h.establecimiento,"Vacunador/a":x.h.vacunador})),"para_cargar_"+iso(hoy))},"Descargar lista en Excel")));
+    c.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(l.map(x=>({Fecha:fmt(x.h.fecha),DNI:x.p.dni,Apellido:x.p.apellido,Nombre:x.p.nombre,Sexo:x.p.sexo,"Fecha nac.":fmt(x.p.nac),Vacuna:x.r?x.r.vac:x.h.dosis,Dosis:x.r?x.r.dosis:"",Esquema:x.r?x.r.grupo:"","Condición":x.h.condicion,Lote:x.h.lote,Establecimiento:x.h.establecimiento,"Vacunador/a":x.h.vacunador})),"Excel_para_cargar_"+iso(hoy))},"Descargar lista en Excel")));
     c.append(el("div",{class:"list"},l.map(x=>el("div",{class:"row",style:"cursor:default"},
       el("div",{class:"main"},el("div",{class:"name"},nombreCompleto(x.p)),el("div",{class:"small muted"},"DNI "+(x.p.dni||"—")+" · "+fmt(x.h.fecha)),
         el("div",{class:"chips"},el("span",{class:"chip ex"},x.r?corto(x.r):x.h.dosis),x.h.lote?el("span",{class:"chip"},"Lote "+x.h.lote):null,x.h.condicion?el("span",{class:"chip"},x.h.condicion):null)),
@@ -1182,7 +1186,7 @@ function filaAcuario(p,h){ const r=regla(h.dosis)||{id:h.dosis,vac:h.dosis,dosis
     Vacuna:g?g[1]:r.vac,Sigla:g?g[2]:"",Dosis:dosisAcuario(r,p,h.fecha),Lote:h.lote||"",Oportuna:(h.oportuna===false||/^Atrasado/.test(condNueva(h.condicion)))?"no":"sí",Motivo:motivoAcuario(h.condicion),Centro:h.establecimiento||S.ajustes.establecimiento||"",Codigo:""}; }
 function aplicacionesTodas(desde,hasta){ const out=[]; S.pacientes.filter(p=>!p.ejemplo).forEach(p=>(p.historial||[]).forEach(h=>{ if((!desde||h.fecha>=desde)&&(!hasta||h.fecha<=hasta)) out.push({p,h}); })); return out.sort((a,b)=>a.h.fecha<b.h.fecha?-1:1); }
 function exportarFormato(tipo){ const l=aplicacionesTodas(); if(!l.length){ toast("Todavía no hay vacunas registradas"); return; }
-  exportarFilas(l.map(x=>tipo==="sisa"?filaSisa(x.p,x.h):filaAcuario(x.p,x.h)),(tipo==="sisa"?"formato_SISA_":"formato_Acuario_")+iso(hoy)); }
+  exportarFilas(l.map(x=>tipo==="sisa"?filaSisa(x.p,x.h):filaAcuario(x.p,x.h)),(tipo==="sisa"?"Excel_SISA_":"Excel_Acuario_")+iso(hoy)); }
 /* Importar los listados que bajás de SISA (Registro Federal de Vacunación Nominalizado) y de Acuario */
 function arreglarRango(ws){ let R=0,C=0; Object.keys(ws).forEach(k=>{ if(k[0]==="!") return; const a=XLSX.utils.decode_cell(k); if(a.r>R) R=a.r; if(a.c>C) C=a.c; }); ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:R,c:C}}); }
 function detectarExterno(wb){
@@ -1309,7 +1313,7 @@ function cardRegistroDia(v){
   if(filas.length){
     card.append(el("div",{class:"tbl-wrap"},el("table",{},el("tr",{},["Paciente","DNI","Vacuna","Dosis","Lote","Vacunador/a","Lugar"].map(h=>el("th",{},h))),
       filas.map(f=>el("tr",{},[nombreCompleto(f.p),f.p.dni,f.r?f.r.vac:f.h.dosis,f.r?f.r.dosis:"",f.h.lote,f.h.vacunador,f.h.lugar].map(x=>el("td",{},x||"—")))))));
-    card.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(filas.map(f=>({Fecha:fmt(f.h.fecha),Apellido:f.p.apellido,Nombre:f.p.nombre,DNI:f.p.dni,"Fecha nac.":fmt(f.p.nac),Vacuna:f.r?f.r.vac:f.h.dosis,Dosis:f.r?f.r.dosis:"","Edad a la aplicación":edadTexto(edadMeses(f.p.nac,parseISO(f.h.fecha))),"Condición":f.h.condicion||"",Lote:f.h.lote,"Vacunador/a":f.h.vacunador,Establecimiento:f.h.establecimiento||"",Lugar:f.h.lugar,ESAVI:f.h.esavi?"Sí":"",Observaciones:f.h.obs})),"registro_"+FECHA_REG)},"Descargar en Excel")));
+    card.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(filas.map(f=>({Fecha:fmt(f.h.fecha),Apellido:f.p.apellido,Nombre:f.p.nombre,DNI:f.p.dni,"Fecha nac.":fmt(f.p.nac),Vacuna:f.r?f.r.vac:f.h.dosis,Dosis:f.r?f.r.dosis:"","Edad a la aplicación":edadTexto(edadMeses(f.p.nac,parseISO(f.h.fecha))),"Condición":f.h.condicion||"",Lote:f.h.lote,"Vacunador/a":f.h.vacunador,Establecimiento:f.h.establecimiento||"",Lugar:f.h.lugar,ESAVI:f.h.esavi?"Sí":"",Observaciones:f.h.obs})),"Excel_registro_"+FECHA_REG)},"Descargar en Excel")));
   } else card.append(el("p",{class:"small muted"},"No hay vacunas registradas ese día. Se registran desde la ficha de cada paciente, con el botón Registrar."));
   v.append(card);
 }
@@ -1434,7 +1438,7 @@ async function verAdjunto(a){
       : el("div",{class:"card"},el("p",{},"Archivo PDF: "+a.nombre)),
     el("div",{class:"toolbar"},
       a.tipo==="pdf"? el("button",{class:"btn",onclick:()=>{ const u=URL.createObjectURL(dataURLaBlob(d)); const w=window.open(u,"_blank"); if(!w) guardarArchivo(a.nombre,dataURLaBlob(d)); }},"Abrir PDF"):null,
-      el("button",{class:"btn ghost",onclick:()=>guardarArchivo(a.nombre.replace(/\.(heic|png|webp)$/i,".jpg"),dataURLaBlob(d))},"Descargar"),
+      el("button",{class:"btn ghost",onclick:()=>guardarArchivo("Fotos_"+(a.escuela?a.escuela.replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g,"_")+"_":"")+(a.fecha||iso(hoy))+"_"+a.nombre.replace(/\.(heic|png|webp)$/i,".jpg").replace(/^(Fotos_)+/,""),dataURLaBlob(d))},"Descargar"),
       el("button",{class:"btn ghost",onclick:()=>{ a.transcripta=!a.transcripta; save(); cerrarOverlay(); render(); toast(a.transcripta?"Marcada como ya pasada a la app":"Marcada como pendiente de pasar"); }},a.transcripta?"Marcar pendiente de pasar":"Ya la pasé a la app"),
       el("button",{class:"btn ghost",onclick:()=>{ cerrarOverlay(); cargarLista(a.escuela,a.curso); }},"Pasar alumnos a mano"),
       el("button",{class:"btn danger",onclick:async(ev)=>{ if(!ev.target.dataset.seguro){ ev.target.dataset.seguro="1"; ev.target.textContent="Tocá de nuevo para borrar"; return; } try{ await ADJ.del(a.id); }catch(e){} S.adjuntos=(S.adjuntos||[]).filter(x=>x.id!==a.id); save(); cerrarOverlay(); render(); }},"Borrar")),
@@ -1563,7 +1567,7 @@ function hojasCompletas(){
   return {Pacientes:P,Vacunas:V,Visitas:Vi,Docentes:D,"Formato SISA":ap.map(x=>filaSisa(x.p,x.h)),"Formato Acuario":ap.map(x=>filaAcuario(x.p,x.h))};
 }
 async function exportarTodo(){
-  const H=hojasCompletas(); const nombre="vacunatorio_completo_"+iso(hoy);
+  const H=hojasCompletas(); const nombre="Excel_completo_"+iso(hoy);
   if(window.XLSX){ const wb=XLSX.utils.book_new(); Object.entries(H).forEach(([k,f])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(f.length?f:[{}]),k));
     const out=XLSX.write(wb,{bookType:"xlsx",type:"array"}); return guardarArchivo(nombre+".xlsx",new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); }
   // Sin la librería de Excel (sin internet la primera vez): tres CSV
@@ -1789,7 +1793,7 @@ function vDocentes(v,lista){
           el("div",{class:"chips"},el("span",{class:"chip "+est[0]},est[1]),p.verif?el("span",{class:"chip ex"},p.verif):el("span",{class:"chip"},"Sin revisar carnet"),hoyV.slice(0,4).map(t=>el("span",{class:"chip"},"✓ "+t)))),
           el("span",{class:"badge "+(est[0]==="ok"?"ok":est[0])},est[0]==="ok"?"✓":"!")); })),
       el("div",{class:"toolbar"},el("button",{class:"btn sm",onclick:()=>formDocente(null,e==="Sin escuela"?"":e)},"+ Docente en esta escuela"),
-        el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(ds.map(p=>({Apellido:p.apellido,Nombre:p.nombre,DNI:p.dni,"Fecha nac.":fmt(p.nac),Domicilio:p.domicilio,Barrio:p.barrio||"","Teléfono":p.telefono,Escuela:p.escuela,Cargo:p.cargo||"",Esquema:p.esquema==="completo"?"Completo":p.esquema==="incompleto"?"Incompleto":"",Faltan:p.faltanTxt||"","Vacunas aplicadas en la escuela":(p.historial||[]).filter(h=>h.lugar==="Escuela").map(h=>{const r=regla(h.dosis)||{vac:h.dosis,dosis:""}; return r.vac+" "+r.dosis+" ("+fmt(h.fecha)+")";}).join(", "),"Verificación":p.verif||""})),("docentes_"+e).replace(/[^\wáéíóúñÁÉÍÓÚÑ ]+/g,"").replace(/\s+/g,"_"))},"Descargar lista"))));
+        el("button",{class:"btn ghost sm",onclick:()=>exportarFilas(ds.map(p=>({Apellido:p.apellido,Nombre:p.nombre,DNI:p.dni,"Fecha nac.":fmt(p.nac),Domicilio:p.domicilio,Barrio:p.barrio||"","Teléfono":p.telefono,Escuela:p.escuela,Cargo:p.cargo||"",Esquema:p.esquema==="completo"?"Completo":p.esquema==="incompleto"?"Incompleto":"",Faltan:p.faltanTxt||"","Vacunas aplicadas en la escuela":(p.historial||[]).filter(h=>h.lugar==="Escuela").map(h=>{const r=regla(h.dosis)||{vac:h.dosis,dosis:""}; return r.vac+" "+r.dosis+" ("+fmt(h.fecha)+")";}).join(", "),"Verificación":p.verif||""})),("Escuelas_docentes_"+e).replace(/[^\wáéíóúñÁÉÍÓÚÑ ]+/g,"").replace(/\s+/g,"_"))},"Descargar lista"))));
   });
 }
 function formDocente(id,escuela){
@@ -1877,7 +1881,26 @@ function cargarLista(escuela,curso){
 let downloads=null;
 (async()=>{ try{ downloads = window.claude?.use ? await window.claude.use("downloads") : null; }catch(e){ downloads=null; } })();
 
-async function guardarArchivo(nombre, data, tipo){
+function tipoDe(nombre,tipo){ return tipo||(/\.csv$/i.test(nombre)?"text/csv":/\.json$/i.test(nombre)?"application/json":/\.xlsx$/i.test(nombre)?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":/\.pdf$/i.test(nombre)?"application/pdf":/\.jpe?g$/i.test(nombre)?"image/jpeg":/\.png$/i.test(nombre)?"image/png":"text/plain"); }
+function puedeCompartir(nombre,data,tipo){ try{ if(!navigator.canShare||!navigator.share) return null; const f=new File([data instanceof Blob?data:new Blob([data],{type:tipoDe(nombre,tipo)})],nombre,{type:tipoDe(nombre,tipo)}); return navigator.canShare({files:[f]})?f:null; }catch(e){ return null; } }
+async function compartirArchivo(f){ try{ await navigator.share({files:[f],title:f.name}); toast("Elegí Drive para guardarlo en la nube"); return true; }catch(e){ if(e&&e.name==="AbortError"){ toast("No se compartió"); return false; } toast("No se pudo abrir Drive. Se descarga al celular."); return null; } }
+// Pregunta dónde guardar: Drive (compartir), el celular (descarga) o las dos cosas.
+function guardarArchivo(nombre, data, tipo){
+  const f=puedeCompartir(nombre,data,tipo); if(!f) return descargarArchivo(nombre,data,tipo);
+  return new Promise(res=>{
+    const fondo=el("div",{class:"hoja-fondo"}); const cerrar=()=>{ fondo.remove(); res(); };
+    const accion=(fn)=>async()=>{ fondo.remove(); await fn(); res(); };
+    fondo.append(el("div",{class:"hoja",role:"dialog","aria-label":"Guardar archivo"},
+      el("b",{},"¿Dónde lo guardo?"),el("div",{class:"small muted",style:"word-break:break-all"},nombre),
+      el("button",{class:"btn big",onclick:accion(async()=>{ if(await compartirArchivo(f)===null) await descargarArchivo(nombre,data,tipo); })},"☁ Guardar en Drive"),
+      el("button",{class:"btn ghost",onclick:accion(()=>descargarArchivo(nombre,data,tipo))},"⬇ Descargar al celular"),
+      el("button",{class:"btn ghost",onclick:accion(async()=>{ await descargarArchivo(nombre,data,tipo); await compartirArchivo(f); })},"Las dos cosas"),
+      el("button",{class:"btn ghost sm",onclick:cerrar},"Cancelar")));
+    fondo.addEventListener("click",e=>{ if(e.target===fondo) cerrar(); });
+    document.body.append(fondo);
+  });
+}
+async function descargarArchivo(nombre, data, tipo){
   if(downloads){ try{ await downloads.save({filename:nombre, data}); toast("Archivo listo: "+nombre); return; }catch(e){ if(e&&e.code==="dismissed"||e&&e.code==="declined"){toast("Descarga cancelada");return;} } }
   // Descarga normal del navegador (app instalada, Chrome, Samsung Internet)
   try{ const blob=data instanceof Blob?data:new Blob([data],{type:tipo||(/\.csv$/i.test(nombre)?"text/csv;charset=utf-8":/\.json$/i.test(nombre)?"application/json":"text/plain;charset=utf-8")});
@@ -1898,8 +1921,8 @@ function hojaXLSX(filas, nombreHoja){
 function aCSV(filas){ if(!filas.length) return ""; const h=Object.keys(filas[0]); const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"'; return [h.map(q).join(";"),...filas.map(f=>h.map(k=>q(f[k])).join(";"))].join("\n"); }
 function filaExport(p){ const r=resumen(p); return {Apellido:p.apellido,Nombre:p.nombre,DNI:p.dni,"Fecha nac.":fmt(p.nac),Edad:edadTexto(edadMeses(p.nac)),Domicilio:p.domicilio,Barrio:p.barrio||"","Teléfono":p.telefono,Tutor:p.tutor||"",Escuela:p.escuela,Curso:p.curso,"Verificación":p.verif||"",Atrasadas:r.atrasada.map(corto).join(", "),"Le tocan ahora":r.pendiente.map(corto).join(", ")}; }
 async function exportarFilas(filas,base){ const b=hojaXLSX(filas,base); if(b) return guardarArchivo(base+".xlsx",b); return guardarArchivo(base+".csv",aCSV(filas)); }
-function exportarPendientes(lista){ exportarFilas(lista.map(x=>filaExport(x.p)),"faltantes_"+iso(hoy)); }
-function exportarEscuela(e,cursos){ const filas=[]; Object.keys(cursos).sort().forEach(c=>cursos[c].forEach(p=>filas.push(Object.assign({Curso:c},filaExport(p),{Estado:resumen(p).faltan?"Faltan vacunas":"Al día"})))); exportarFilas(filas,("escuela_"+e).replace(/[^\wáéíóúñÁÉÍÓÚÑ ]+/g,"").replace(/\s+/g,"_")); }
+function exportarPendientes(lista){ exportarFilas(lista.map(x=>filaExport(x.p)),"Excel_faltantes_"+iso(hoy)); }
+function exportarEscuela(e,cursos){ const filas=[]; Object.keys(cursos).sort().forEach(c=>cursos[c].forEach(p=>filas.push(Object.assign({Curso:c},filaExport(p),{Estado:resumen(p).faltan?"Faltan vacunas":"Al día"})))); exportarFilas(filas,("Escuelas_"+e).replace(/[^\wáéíóúñÁÉÍÓÚÑ ]+/g,"").replace(/\s+/g,"_")); }
 
 const ALIAS={
   apellido:["apellido","apellidos","ape"],
@@ -2033,7 +2056,7 @@ function vDatos(v){
   v.append(el("div",{class:"card"},el("h3",{},"Copia de seguridad"),
     el("p",{class:"small muted"},"Los datos se guardan solo en este celular. Hacé una copia seguido y guardala en un lugar seguro. «Unir copia de otro celular» suma los datos de otro equipo sin borrar nada de este. «Restaurar copia» reemplaza todo lo de este celular."),
     el("div",{class:"toolbar"},
-      el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("copia_vacunatorio_"+iso(hoy)+".json",await armarCopia()); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
+      el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("Copias_"+iso(hoy)+".json",await armarCopia()); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
       el("label",{class:"btn ghost",style:"display:inline-block"},"Unir copia de otro celular",el("input",{type:"file",id:"f-unir",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; const r=unirCopia(d); render(); toast("Unido: "+r.nuevos+" pacientes nuevos, "+r.actualizados+" actualizados, "+r.vacunas+" vacunas, "+r.visitas+" visitas, "+r.lotes+" lotes, "+(r.adjuntos||0)+" planillas"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); e.target.value=""; }})),
       el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; if(Array.isArray(d.lotes)) S.lotes=d.lotes; if(Array.isArray(d.adjuntos)){ S.adjuntos=d.adjuntos; guardarArchivosDeCopia(d); } if(d.logo) S.ajustes.logo=d.logo; save(); pintarLogo(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
   const nEj=S.pacientes.filter(p=>p.ejemplo).length;
