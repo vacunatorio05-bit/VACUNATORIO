@@ -174,60 +174,86 @@ nav.tabs button[aria-current="true"] svg{background:var(--accent-soft);border-ra
 <script>
 /* ===================== CALENDARIO (edad en meses) ===================== */
 // tipo: "dosis" (una vez a cierta edad), "anual" (una por año en un rango), "cada10" (refuerzo cada 10 años)
+// Fuente: Manual de Vacunación 2025 (Programa de Inmunizaciones, Salta) y Calendario Nacional.
+// Campos: edad (meses) · max (meses) · cohorte (le toca desde el 1/1 del año en que cumple N años)
+// tras [[id,días]] (intervalo mínimo desde otra dosis) · requiere (sin esa dosis previa no corresponde)
+// minDias (edad mínima en días) · maxDias (edad máxima en días) · vigenciaDias (vale solo por ese tiempo)
+// omitir(p,ap) (esquema reducido según edad de inicio) · vivo (vacuna a virus vivo)
+const inicio=(p,ap,id)=>{ const f=ap[id]; return edadMeses(p.nac, f?parseISO(f):hoy); };
 const CAL = [
-  {id:"bcg", vac:"BCG", dosis:"Única", edad:0, max:72, grupo:"Recién nacido"},
-  {id:"hb_rn", vac:"Hepatitis B", dosis:"Recién nacido", edad:0, max:1, grupo:"Recién nacido"},
-  {id:"neumo1", vac:"Neumococo conjugada", dosis:"1ª", edad:2, max:59, grupo:"2 meses"},
-  {id:"quin1", vac:"Quíntuple (pentavalente)", dosis:"1ª", edad:2, max:83, grupo:"2 meses"},
-  {id:"ipv1", vac:"IPV (Salk)", dosis:"1ª", edad:2, max:83, grupo:"2 meses"},
-  {id:"rota1", vac:"Rotavirus", dosis:"1ª", edad:2, max:3, grupo:"2 meses"},
-  {id:"mening1", vac:"Meningococo ACWY", dosis:"1ª", edad:3, max:23, grupo:"3 meses"},
-  {id:"neumo2", vac:"Neumococo conjugada", dosis:"2ª", edad:4, max:59, grupo:"4 meses"},
-  {id:"quin2", vac:"Quíntuple (pentavalente)", dosis:"2ª", edad:4, max:83, grupo:"4 meses"},
-  {id:"ipv2", vac:"IPV (Salk)", dosis:"2ª", edad:4, max:83, grupo:"4 meses"},
-  {id:"rota2", vac:"Rotavirus", dosis:"2ª", edad:4, max:6, grupo:"4 meses"},
-  {id:"mening2", vac:"Meningococo ACWY", dosis:"2ª", edad:5, max:23, grupo:"5 meses"},
-  {id:"quin3", vac:"Quíntuple (pentavalente)", dosis:"3ª", edad:6, max:83, grupo:"6 meses"},
-  {id:"ipv3", vac:"IPV (Salk)", dosis:"3ª", edad:6, max:83, grupo:"6 meses"},
+  {id:"bcg", vac:"BCG", dosis:"Única", edad:0, max:83, grupo:"Recién nacido"},
+  {id:"hb_rn", vac:"Hepatitis B", dosis:"Recién nacido (antes de las 12 hs)", edad:0, max:1, grupo:"Recién nacido"},
+  {id:"neumo1", vac:"Neumococo conjugada", dosis:"1ª", edad:2, max:59, minDias:42, grupo:"2 meses"},
+  {id:"quin1", vac:"Quíntuple (pentavalente)", dosis:"1ª", edad:2, max:59, minDias:42, grupo:"2 meses"},
+  {id:"ipv1", vac:"IPV (Salk)", dosis:"1ª", edad:2, max:227, minDias:42, grupo:"2 meses"},
+  {id:"rota1", vac:"Rotavirus", dosis:"1ª", edad:2, maxDias:104, minDias:42, vivo:"oral", grupo:"2 meses"},
+  {id:"mening1", vac:"Meningococo ACWY", dosis:"1ª (o única si empieza después de los 2 años)", edad:3, max:131, minDias:60, nacidoDesde:"2016-10-01", grupo:"3 meses"},
+  {id:"neumo2", vac:"Neumococo conjugada", dosis:"2ª", edad:4, max:59, tras:[["neumo1",56]], omitir:(p,ap)=>inicio(p,ap,"neumo1")>=12, grupo:"4 meses"},
+  {id:"quin2", vac:"Quíntuple (pentavalente)", dosis:"2ª", edad:4, max:59, tras:[["quin1",28]], grupo:"4 meses"},
+  {id:"ipv2", vac:"IPV (Salk)", dosis:"2ª", edad:4, max:227, tras:[["ipv1",28]], grupo:"4 meses"},
+  {id:"rota2", vac:"Rotavirus", dosis:"2ª", edad:4, maxDias:182, tras:[["rota1",28]], requiere:"rota1", vivo:"oral", grupo:"4 meses"},
+  {id:"mening2", vac:"Meningococo ACWY", dosis:"2ª", edad:5, max:23, tras:[["mening1",56]], nacidoDesde:"2016-10-01", omitir:(p,ap)=>inicio(p,ap,"mening1")>=7, grupo:"5 meses"},
+  {id:"quin3", vac:"Quíntuple (pentavalente)", dosis:"3ª", edad:6, max:59, tras:[["quin2",28]], grupo:"6 meses"},
+  {id:"ipv3", vac:"IPV (Salk)", dosis:"3ª", edad:6, max:83, tras:[["ipv2",28]], omitir:(p,ap)=>inicio(p,ap,"ipv1")>=84, grupo:"6 meses"},
   {id:"gripe_ninos", vac:"Antigripal", dosis:"Anual (6 a 24 meses)", tipo:"anual", familia:"gripe", edad:6, max:24, grupo:"6 meses"},
-  {id:"neumo_ref", vac:"Neumococo conjugada", dosis:"Refuerzo", edad:12, max:59, grupo:"12 meses"},
-  {id:"hepa", vac:"Hepatitis A", dosis:"Única", edad:12, max:155, grupo:"12 meses"},
-  {id:"tv1", vac:"Triple viral (SRP)", dosis:"1ª", edad:12, nacidoDesde:1965, grupo:"12 meses"},
-  {id:"varic1", vac:"Varicela", dosis:"1ª", edad:15, max:155, grupo:"15 meses"},
-  {id:"mening_ref", vac:"Meningococo ACWY", dosis:"Refuerzo", edad:15, max:59, grupo:"15 meses"},
-  {id:"quin_ref", vac:"Quíntuple / Cuádruple", dosis:"Refuerzo (15-18 m)", edad:15, max:83, grupo:"15 a 18 meses"},
-  {id:"fa1", vac:"Fiebre amarilla", dosis:"1ª", edad:18, zona:"fa", grupo:"18 meses"},
-  {id:"tv2", vac:"Triple viral (SRP)", dosis:"2ª", edad:60, nacidoDesde:1965, grupo:"Ingreso escolar (5 años)"},
-  {id:"dtp_esc", vac:"Triple bacteriana celular (DTP)", dosis:"Refuerzo", edad:60, max:131, grupo:"Ingreso escolar (5 años)"},
-  {id:"ipv_esc", vac:"IPV (Salk)", dosis:"Refuerzo", edad:60, max:131, grupo:"Ingreso escolar (5 años)"},
-  {id:"varic2", vac:"Varicela", dosis:"2ª", edad:60, max:155, grupo:"Ingreso escolar (5 años)"},
-  {id:"dtpa11", vac:"Triple bacteriana acelular (dTpa)", dosis:"Refuerzo", edad:132, max:215, grupo:"11 años"},
-  {id:"vph", vac:"VPH", dosis:"Única", edad:132, max:215, grupo:"11 años"},
-  {id:"mening11", vac:"Meningococo ACWY", dosis:"Única (11 años)", edad:132, max:215, grupo:"11 años"},
-  {id:"fa_ref", vac:"Fiebre amarilla", dosis:"Refuerzo", edad:132, zona:"fa", grupo:"11 años"},
-  {id:"hb_adol", vac:"Hepatitis B", dosis:"Esquema 3 dosis (si no lo tiene)", edad:132, cubiertoPor:["quin3"], grupo:"11 años"},
-  {id:"dengue", vac:"Dengue", dosis:"2 dosis (zonas priorizadas)", edad:180, max:479, zona:"dengue", grupo:"15 a 39 años"},
-  {id:"dt", vac:"Doble adultos (dT)", dosis:"Refuerzo cada 10 años", tipo:"cada10", edad:192, cuentan:["dtpa11","dt"], grupo:"Adultos"},
+  {id:"gripe_primo", vac:"Antigripal", dosis:"2ª dosis (primera vez que se vacuna, hasta 8 años)", especial:"gripe2", familia:"gripe", edad:6, max:107, grupo:"6 meses"},
+  {id:"neumo_ref", vac:"Neumococo conjugada", dosis:"Refuerzo", edad:12, max:59, minDias:365, tras:[["neumo2",56],["neumo1",56]], omitir:(p,ap)=>inicio(p,ap,"neumo1")>=24, grupo:"12 meses"},
+  {id:"hepa", vac:"Hepatitis A", dosis:"Única", edad:12, minDias:365, nacidoDesde:"2004-01-01", grupo:"12 meses"},
+  {id:"tv1", vac:"Triple viral (SRP)", dosis:"1ª", edad:12, minDias:365, nacidoDesde:"1965-01-01", vivo:true, grupo:"12 meses"},
+  {id:"varic1", vac:"Varicela", dosis:"1ª", edad:15, minDias:365, nacidoDesde:"2013-10-01", vivo:true, grupo:"15 meses"},
+  {id:"mening_ref", vac:"Meningococo ACWY", dosis:"Refuerzo", edad:15, max:131, minDias:365, tras:[["mening2",56],["mening1",56]], requiere:"mening1", nacidoDesde:"2016-10-01", omitir:(p,ap)=>inicio(p,ap,"mening1")>=24, grupo:"15 meses"},
+  {id:"quin_ref", vac:"Quíntuple (pentavalente)", dosis:"Refuerzo (15 a 18 meses)", edad:15, max:59, minDias:456, tras:[["quin3",182]], grupo:"15 a 18 meses"},
+  {id:"fa1", vac:"Fiebre amarilla", dosis:"1ª (o única en adultos hasta 59 años)", edad:18, max:719, minDias:274, zona:"fa", vivo:true, grupo:"18 meses"},
+  {id:"tv2", vac:"Triple viral (SRP)", dosis:"2ª", edad:60, cohorte:5, tras:[["tv1",28]], nacidoDesde:"1965-01-01", vivo:true, grupo:"Ingreso escolar (año en que cumple 5)"},
+  {id:"dtp_esc", vac:"Triple bacteriana celular (DTP)", dosis:"Refuerzo", edad:60, cohorte:5, max:83, grupo:"Ingreso escolar (año en que cumple 5)"},
+  {id:"ipv_esc", vac:"IPV (Salk)", dosis:"Refuerzo", edad:60, cohorte:5, max:227, tras:[["ipv3",182],["ipv2",182]], grupo:"Ingreso escolar (año en que cumple 5)"},
+  {id:"varic2", vac:"Varicela", dosis:"2ª", edad:60, cohorte:5, tras:[["varic1",28]], nacidoDesde:"2013-10-01", vivo:true, grupo:"Ingreso escolar (año en que cumple 5)"},
+  {id:"dtpa_rec", vac:"Triple bacteriana acelular (dTpa)", dosis:"Recupero (7 años o más sin refuerzo de ingreso escolar)", edad:84, max:131, cubiertoPor:["dtp_esc"], grupo:"7 a 10 años"},
+  {id:"hb_adol", vac:"Hepatitis B", dosis:"1ª (desde 5 años, sin esquema completo)", edad:60, cubiertoPor:["quin3"], grupo:"Hepatitis B (5 años y más, embarazadas, adultos)"},
+  {id:"hb2", vac:"Hepatitis B", dosis:"2ª", edad:60, tras:[["hb_adol",28]], requiere:"hb_adol", cubiertoPor:["quin3"], grupo:"Hepatitis B (5 años y más, embarazadas, adultos)"},
+  {id:"hb3", vac:"Hepatitis B", dosis:"3ª", edad:60, tras:[["hb2",56],["hb_adol",182]], requiere:"hb2", cubiertoPor:["quin3"], grupo:"Hepatitis B (5 años y más, embarazadas, adultos)"},
+  {id:"dtpa11", vac:"Triple bacteriana acelular (dTpa)", dosis:"Refuerzo", edad:132, cohorte:11, max:215, grupo:"11 años (año en que cumple 11)"},
+  {id:"vph", vac:"VPH", dosis:"1ª (única hasta los 20 años)", edad:132, cohorte:11, max:323, minDias:3653, nacidoDesdeSexo:{F:"2000-01-01",M:"2006-01-01"}, grupo:"11 años (año en que cumple 11)"},
+  {id:"vph2", vac:"VPH", dosis:"2ª (si empezó con 21 años o más)", edad:252, max:335, tras:[["vph",182]], requiere:"vph", omitir:(p,ap)=>inicio(p,ap,"vph")<252||tieneCond(p,"inmuno"), grupo:"11 años (año en que cumple 11)"},
+  {id:"vph_i2", vac:"VPH", dosis:"2ª (inmunocomprometidos 10 a 26 años)", cond:"inmuno", edad:120, max:335, tras:[["vph",56]], requiere:"vph", grupo:"11 años (año en que cumple 11)"},
+  {id:"vph_i3", vac:"VPH", dosis:"3ª (inmunocomprometidos 10 a 26 años)", cond:"inmuno", edad:120, max:335, tras:[["vph_i2",84],["vph",182]], requiere:"vph_i2", grupo:"11 años (año en que cumple 11)"},
+  {id:"mening11", vac:"Meningococo ACWY", dosis:"Única (11 años)", edad:132, cohorte:11, nacidoDesde:"2006-01-01", grupo:"11 años (año en que cumple 11)"},
+  {id:"fa_ref", vac:"Fiebre amarilla", dosis:"Refuerzo (si la 1ª fue antes de los 2 años)", edad:132, cohorte:11, max:215, zona:"fa", requiere:"fa1", omitir:(p,ap)=>inicio(p,ap,"fa1")>=24, vivo:true, grupo:"11 años (año en que cumple 11)"},
+  {id:"dengue", vac:"Dengue", dosis:"1ª (departamentos priorizados)", edad:180, max:479, zona:"dengue", vivo:true, grupo:"15 a 39 años"},
+  {id:"dengue2", vac:"Dengue", dosis:"2ª (3 meses después)", edad:180, zona:"dengue", tras:[["dengue",90]], requiere:"dengue", vivo:true, grupo:"15 a 39 años"},
+  {id:"dt", vac:"Doble adultos (dT)", dosis:"Refuerzo cada 10 años", tipo:"cada10", edad:192, cuentan:["dtpa11","dt","dtpa_rec"], grupo:"Adultos"},
   {id:"gripe_65", vac:"Antigripal", dosis:"Anual (65 años y más)", tipo:"anual", familia:"gripe", edad:780, grupo:"65 años y más"},
+  {id:"neumo_65", vac:"Neumococo conjugada", dosis:"VCN20 única (65 años y más)", edad:780, grupo:"65 años y más"},
   {id:"gripe_riesgo", vac:"Antigripal", dosis:"Anual (2 a 64 años con factor de riesgo)", tipo:"anual", familia:"gripe", cond:"riesgo", edad:24, max:779, grupo:"Factores de riesgo"},
+  {id:"neumo20_r", vac:"Neumococo conjugada", dosis:"VCN20 única (5 a 64 años con factor de riesgo)", cond:"riesgo_neumo", edad:60, max:779, grupo:"Factores de riesgo"},
+  {id:"hepa_r1", vac:"Hepatitis A", dosis:"1ª (grupo de riesgo)", cond:"hepa_riesgo", edad:12, cubiertoPor:["hepa"], grupo:"Factores de riesgo"},
+  {id:"hepa_r2", vac:"Hepatitis A", dosis:"2ª (grupo de riesgo, 6 meses después)", cond:"hepa_riesgo", edad:12, tras:[["hepa_r1",182],["hepa",182]], requiereAlguna:["hepa","hepa_r1"], grupo:"Factores de riesgo"},
   {id:"gripe_ps", vac:"Antigripal", dosis:"Anual (personal de salud)", tipo:"anual", familia:"gripe", cond:"personal_salud", edad:192, grupo:"Personal de salud"},
-  {id:"gripe_estr", vac:"Antigripal", dosis:"Anual (personal estratégico)", tipo:"anual", familia:"gripe", cond:"estrategico", edad:192, grupo:"Personal esencial / estratégico"},
-  {id:"neumo_65", vac:"Neumococo conjugada", dosis:"Única (65 años y más)", edad:780, grupo:"65 años y más"},
-  {id:"emb_dtpa", vac:"Triple bacteriana acelular (dTpa)", dosis:"Cada embarazo (desde sem. 20)", cond:"embarazada", edad:0, grupo:"Embarazo"},
-  {id:"emb_gripe", vac:"Antigripal", dosis:"En el embarazo", cond:"embarazada", familia:"gripe", edad:0, grupo:"Embarazo"},
-  {id:"emb_vsr", vac:"VSR (virus sincicial)", dosis:"Sem. 32 a 36", cond:"embarazada", edad:0, grupo:"Embarazo"},
-  {id:"puerp_gripe", vac:"Antigripal", dosis:"Puerperio (hasta 10 días, si no la recibió embarazada)", cond:"puerpera", familia:"gripe", cubiertoPor:["emb_gripe"], edad:0, grupo:"Puerperio"},
+  {id:"dtpa_ps", vac:"Triple bacteriana acelular (dTpa)", dosis:"Cada 5 años (personal que atiende menores de 1 año)", tipo:"cada10", meses:60, cond:"ps_lactantes", edad:192, cuentan:["dtpa_ps"], grupo:"Personal de salud"},
+  {id:"gripe_estr", vac:"Antigripal", dosis:"Anual (personal estratégico / seguridad)", tipo:"anual", familia:"gripe", cond:"estrategico", edad:192, grupo:"Personal esencial / estratégico"},
+  {id:"dtpa_conv", vac:"Triple bacteriana acelular (dTpa)", dosis:"Única (conviviente de prematuro menor de 1500 g)", cond:"conv_prematuro", edad:192, vigenciaDias:365, grupo:"Convivientes"},
+  {id:"emb_dtpa", vac:"Triple bacteriana acelular (dTpa)", dosis:"Cada embarazo (desde sem. 20)", cond:"embarazada", edad:0, vigenciaDias:300, grupo:"Embarazo"},
+  {id:"emb_gripe", vac:"Antigripal", dosis:"En el embarazo (cualquier trimestre)", cond:"embarazada", familia:"gripe", edad:0, vigenciaDias:300, grupo:"Embarazo"},
+  {id:"emb_vsr", vac:"VSR (virus sincicial)", dosis:"Sem. 32 a 36,6", cond:"embarazada", edad:0, vigenciaDias:300, grupo:"Embarazo"},
+  {id:"puerp_gripe", vac:"Antigripal", dosis:"Puerperio (hasta 10 días, si no la recibió embarazada)", cond:"puerpera", familia:"gripe", cubiertoPor:["emb_gripe"], edad:0, vigenciaDias:300, grupo:"Puerperio"},
 ];
 
 /* ===================== CONDICIONES DEL PACIENTE ===================== */
-// "indica": si ese factor de riesgo indica antigripal (2 a 64 años) según los lineamientos nacionales.
-const RIESGOS=[["diabetes","Diabetes",true],["respiratoria","Enfermedad respiratoria crónica (EPOC, asma moderada/grave…)",true],["cardiaca","Enfermedad cardíaca (insuficiencia, coronaria, valvulopatía, congénita)",true],
-  ["renal","Insuficiencia renal crónica (diálisis o próxima a diálisis)",true],["inmuno","Inmunodepresión (VIH, oncológico, trasplante, corticoides altas dosis)",true],["obesidad","Obesidad mórbida (IMC mayor a 40)",true],
-  ["neuro","Enf. neuromuscular, retraso madurativo grave o síndrome genético",true],["hta","Hipertensión arterial",false],["hipotiroidismo","Hipotiroidismo",false],["hipertiroidismo","Hipertiroidismo",false],["otra","Otra enfermedad crónica",false]];
-const GRUPOS_P=[["puerpera","Puérpera"],["personal_salud","Personal de salud"],["estrategico","Personal esencial / estratégico"]];
+// Cada factor dice qué vacunas indica: g = antigripal (2 a 64 años), n = neumococo VCN20 (5 a 64 años), a = hepatitis A 2 dosis.
+const RIESGOS=[["diabetes","Diabetes","gn"],["respiratoria","Enfermedad respiratoria crónica (EPOC, asma moderada/grave…)","gn"],["cardiaca","Enfermedad cardíaca (insuficiencia, coronaria, valvulopatía, congénita)","gn"],
+  ["renal","Insuficiencia renal crónica (diálisis o próxima a diálisis)","gn"],["inmuno","Inmunodepresión (VIH, oncológico, trasplante, asplenia, corticoides altas dosis)","gna"],["obesidad","Obesidad mórbida (IMC mayor a 40)","g"],
+  ["neuro","Enf. neuromuscular, retraso madurativo grave o síndrome genético","g"],["hepatica","Enfermedad hepática crónica","na"],["fistula","Fístula de LCR o implante coclear","n"],["hemofilia","Hemofilia","a"],
+  ["hta","Hipertensión arterial",""],["hipotiroidismo","Hipotiroidismo",""],["hipertiroidismo","Hipertiroidismo",""],["otra","Otra enfermedad crónica",""]];
+const GRUPOS_P=[["puerpera","Puérpera"],["personal_salud","Personal de salud"],["ps_lactantes","Personal de salud que atiende menores de 1 año"],["estrategico","Personal esencial / estratégico / seguridad"],
+  ["manipula","Manipula alimentos, limpieza en salud/educación o cloacas"],["conv_prematuro","Conviviente de prematuro menor de 1500 g (hasta 6 meses)"]];
+const riesgoIndica=(p,letra)=>(p.riesgos||[]).some(x=>{const r=RIESGOS.find(y=>y[0]===x); return r&&r[2].includes(letra);});
 function tieneCond(p,k){
   if(k==="embarazada") return !!p.embarazada;
-  if(k==="riesgo") return (p.riesgos||[]).some(x=>{const r=RIESGOS.find(y=>y[0]===x); return r&&r[2];});
+  if(k==="riesgo") return riesgoIndica(p,"g");
+  if(k==="riesgo_neumo") return riesgoIndica(p,"n");
+  if(k==="hepa_riesgo") return riesgoIndica(p,"a")||(p.grupos||[]).includes("manipula");
+  if(k==="inmuno") return (p.riesgos||[]).includes("inmuno");
+  if(k==="personal_salud") return (p.grupos||[]).includes("personal_salud")||(p.grupos||[]).includes("ps_lactantes");
   return !!(p.grupos||[]).includes(k);
 }
 function etiquetasCond(p){ const out=[]; if(p.embarazada) out.push("Embarazada"); (p.grupos||[]).forEach(k=>{const g=GRUPOS_P.find(x=>x[0]===k); if(g) out.push(g[1]);});
@@ -281,13 +307,22 @@ function fechaDesde(v){
 
 /* ===================== CÁLCULO DE FALTANTES ===================== */
 // estados: ok, atrasada, pendiente, proxima, futura, fuera, nocorresponde
+function addDias(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function dosisGripe(p){ // fechas distintas de antigripal aplicadas (historial + última de cada regla)
+  const ids=CAL.filter(x=>x.familia==="gripe").map(x=>x.id); const s=new Set();
+  (p.historial||[]).forEach(h=>{ if(ids.includes(h.dosis)&&h.fecha) s.add(h.fecha); });
+  ids.forEach(k=>{ const f=(p.aplicadas||{})[k]; if(f) s.add(f); });
+  return [...s].sort();
+}
 function estadoDosis(p,r){
   const m=edadMeses(p.nac); if(m==null) return {e:"nocorresponde"};
   if(r.cond && !tieneCond(p,r.cond)) return {e:"nocorresponde"};
   if(r.zona && !S.ajustes[r.zona]) return {e:"nocorresponde"};
-  const nacY=parseISO(p.nac).getFullYear();
-  if(r.nacidoDesde && nacY<r.nacidoDesde) return {e:"nocorresponde"};
+  const nac=parseISO(p.nac), nacY=nac.getFullYear();
+  if(r.nacidoDesde && p.nac<r.nacidoDesde) return {e:"nocorresponde"};
+  if(r.nacidoDesdeSexo){ const lim=r.nacidoDesdeSexo[p.sexo]||r.nacidoDesdeSexo.M; if(p.nac<lim) return {e:"nocorresponde"}; }
   const ap=p.aplicadas||{};
+  const vigente=(k)=>{ const f=parseISO(ap[k]); if(!f) return false; return !r.vigenciaDias || (hoy-f)/86400000<=r.vigenciaDias; };
   if(r.tipo==="anual"){
     if(m<r.edad || (r.max!=null && m>r.max)) return {e:"nocorresponde"};
     const ids=r.familia?CAL.filter(x=>x.familia===r.familia).map(x=>x.id):[r.id];
@@ -296,17 +331,36 @@ function estadoDosis(p,r){
   }
   if(r.tipo==="cada10"){
     if(m<r.edad) return {e:"nocorresponde"};
+    const meses=r.meses||120;
     const fechas=(r.cuentan||[r.id]).map(k=>parseISO(ap[k])).filter(Boolean).sort((a,b)=>b-a);
-    if(fechas[0] && addMonths(fechas[0],120)>hoy) return {e:"ok",f:iso(fechas[0]),vence:iso(addMonths(fechas[0],120))};
+    if(fechas[0] && addMonths(fechas[0],meses)>hoy) return {e:"ok",f:iso(fechas[0]),vence:iso(addMonths(fechas[0],meses))};
     return {e:fechas[0]?"atrasada":"pendiente"};
   }
-  if(r.cond){ if(ap[r.id]) return {e:"ok",f:ap[r.id]}; if(r.cubiertoPor&&r.cubiertoPor.some(k=>ap[k])) return {e:"ok",cubierto:true}; if(m<r.edad||(r.max!=null&&m>r.max)) return {e:"nocorresponde"}; return {e:"pendiente"}; }
-  if(ap[r.id]) return {e:"ok",f:ap[r.id]};
-  if(r.cubiertoPor && r.cubiertoPor.some(k=>ap[k])) return {e:"ok",cubierto:true};
-  const due=addMonths(parseISO(p.nac),r.edad);
-  if(m<r.edad){ const dias=(due-hoy)/86400000; return {e: dias<=30?"proxima":"futura", due:iso(due)}; }
+  if(r.especial==="gripe2"){ // primovacunación: 2 dosis separadas 4 semanas (6-24 meses, o hasta 8 años con factor de riesgo)
+    if(ap[r.id] && parseISO(ap[r.id]).getFullYear()===hoy.getFullYear()) return {e:"ok",f:ap[r.id]};
+    if(m<r.edad||m>r.max||(m>24&&!tieneCond(p,"riesgo"))) return {e:"nocorresponde"};
+    const fs=dosisGripe(p); if(fs.length!==1||parseISO(fs[0]).getFullYear()!==hoy.getFullYear()) return {e:"nocorresponde"};
+    const due=addDias(parseISO(fs[0]),28); if(due>hoy){ return {e:(due-hoy)/86400000<=30?"proxima":"futura",due:iso(due)}; }
+    return {e:"pendiente",due:iso(due)};
+  }
+  if(r.cond||r.vigenciaDias){
+    if(ap[r.id] && vigente(r.id)) return {e:"ok",f:ap[r.id]};
+    if(r.cubiertoPor&&r.cubiertoPor.some(vigente)) return {e:"ok",cubierto:true};
+  } else {
+    if(ap[r.id]) return {e:"ok",f:ap[r.id]};
+    if(r.cubiertoPor && r.cubiertoPor.some(k=>ap[k])) return {e:"ok",cubierto:true};
+  }
+  if(r.requiere && !ap[r.requiere]) return {e:"nocorresponde"};
+  if(r.requiereAlguna && !r.requiereAlguna.some(k=>ap[k])) return {e:"nocorresponde"};
+  if(r.omitir && r.omitir(p,ap)) return {e:"nocorresponde"};
+  let due = r.cohorte!=null ? new Date(nacY+r.cohorte,0,1) : addMonths(nac,r.edad);
+  if(r.minDias){ const md=addDias(nac,r.minDias); if(md>due) due=md; }
+  (r.tras||[]).forEach(([k,d])=>{ const f=parseISO(ap[k]); if(f){ const x=addDias(f,d); if(x>due) due=x; } });
+  if(r.maxDias!=null && (hoy-nac)/86400000>r.maxDias) return {e:"fuera"};
   if(r.max!=null && m>r.max) return {e:"fuera"};
-  return {e: m>=r.edad+1 ? "atrasada":"pendiente", due:iso(due)};
+  if(due>hoy){ const dias=(due-hoy)/86400000; return {e: dias<=30?"proxima":"futura", due:iso(due)}; }
+  if(r.cond) return r.tras? {e:"pendiente",due:iso(due)} : {e:"pendiente"};
+  return {e: addMonths(due,1)<=hoy ? "atrasada":"pendiente", due:iso(due)};
 }
 function resumen(p){
   const out={atrasada:[],pendiente:[],proxima:[],ok:0};
@@ -498,7 +552,7 @@ function editarPaciente(id, base){
         el("label",{class:"check"},el("input",{type:"checkbox",id:"p-embarazada",checked:!!p.embarazada}),"Embarazada"),
         GRUPOS_P.map(([k,t])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-grupo",value:k,checked:(p.grupos||[]).includes(k)}),t)),
         el("div",{class:"small muted",style:"margin-top:6px;font-weight:700"},"Factores de riesgo (podés marcar varios)"),
-        RIESGOS.map(([k,t])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-riesgo",value:k,checked:(p.riesgos||[]).includes(k)}),t)),
+        RIESGOS.map(([k,t,ind])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-riesgo",value:k,checked:(p.riesgos||[]).includes(k)}),t,ind?null:el("span",{class:"small muted"}," (se anota, no suma vacunas)"))),
         el("input",{id:"p-riesgoOtro",placeholder:"¿Cuál otra enfermedad? (opcional)",value:p.riesgoOtro||""}))),
     mas,
     el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit",onclick:()=>{otro=false;}},"Guardar"),
@@ -606,18 +660,40 @@ function movLote(l,tipo){
 function exportarStock(){ exportarFilas((S.lotes||[]).map(l=>{const st=stockLote(l),e=estadoLote(l); return {Vacuna:l.vacuna,Lote:l.lote,Vencimiento:fmt(l.vence),Ingresaron:st.ingresos,Aplicadas:st.usadas,Bajas:st.bajas,Stock:st.stock,Estado:e.t};}),"stock_vacunas_"+iso(hoy)); }
 
 
-/* ===================== DOSIS ANTES DE TIEMPO ===================== */
-// Edad mínima: 2 semanas antes de la edad indicada (desde los 2 meses). Intervalo mínimo entre dosis de una serie: 28 días.
+/* ===================== DOSIS ANTES DE TIEMPO Y CONTRAINDICACIONES ===================== */
+// Edad mínima e intervalos según el Manual de Vacunación 2025 (tabla de edad mínima e intervalos mínimos).
 function avisoTemprano(p,rule,fecha){
-  if(rule.tipo||rule.cond||!p.nac) return null;
   const f=parseISO(fecha), n=parseISO(p.nac); if(!f||!n) return null;
-  const msgs=[];
-  if(rule.edad>0){ const min=new Date(addMonths(n,rule.edad)); min.setDate(min.getDate()-14);
-    if(f<min) msgs.push("se aplicaría con "+edadTexto(edadMeses(p.nac,f))+" y corresponde desde los "+edadTexto(rule.edad)); }
-  const idx=CAL.indexOf(rule);
-  const prev=CAL.slice(0,idx).filter(r=>r.vac===rule.vac&&!r.tipo&&!r.cond).map(r=>(p.aplicadas||{})[r.id]).filter(Boolean).sort().pop();
-  if(prev){ const dif=Math.round((f-parseISO(prev))/86400000); if(dif<28 && dif>=0) msgs.push("pasaron solo "+dif+" días desde la dosis anterior (mínimo 28)"); if(dif<0) msgs.push("la fecha es anterior a la dosis previa ("+fmt(prev)+")"); }
-  return msgs.length? "Dosis antes de tiempo: "+msgs.join("; ")+"." : null;
+  const ap=p.aplicadas||{}; const msgs=[];
+  if(!rule.tipo && !rule.cond && !rule.especial){
+    let min=null;
+    if(rule.minDias) min=addDias(n,rule.minDias);
+    else if(rule.edad>0){ min=addMonths(n,rule.edad); min.setDate(min.getDate()-14); }
+    if(rule.cohorte!=null && !rule.minDias){ const c=new Date(n.getFullYear()+rule.cohorte,0,1); if(!min||c<min) min=c; }
+    if(min && f<min) msgs.push("se aplicaría con "+edadTexto(edadMeses(p.nac,f))+" y la edad mínima es "+(rule.minDias?edadTexto(Math.round(rule.minDias/30.44))+(rule.minDias<365?" ("+Math.round(rule.minDias/7)+" semanas)":""):edadTexto(rule.edad)));
+  }
+  if(rule.tras){ rule.tras.forEach(([k,d])=>{ const pf=parseISO(ap[k]); if(!pf||k===rule.id) return; const dif=Math.round((f-pf)/86400000);
+      if(dif<0) msgs.push("la fecha es anterior a la dosis previa ("+fmt(ap[k])+")"); else if(dif<d) msgs.push("pasaron "+dif+" días desde "+(CAL.find(x=>x.id===k)||{}).dosis+" (mínimo "+d+")"); }); }
+  else if(!rule.tipo&&!rule.cond){
+    const idx=CAL.indexOf(rule);
+    const prev=CAL.slice(0,idx).filter(r=>r.vac===rule.vac&&!r.tipo&&!r.cond).map(r=>ap[r.id]).filter(Boolean).sort().pop();
+    if(prev){ const dif=Math.round((f-parseISO(prev))/86400000); if(dif<28 && dif>=0) msgs.push("pasaron solo "+dif+" días desde la dosis anterior (mínimo 28)"); if(dif<0) msgs.push("la fecha es anterior a la dosis previa ("+fmt(prev)+")"); }
+  }
+  if(rule.vivo===true){ // vacunas a virus vivos inyectables: el mismo día o separadas al menos 28 días
+    CAL.filter(r=>r.vivo===true&&r.vac!==rule.vac&&ap[r.id]).forEach(r=>{ const dif=Math.abs(Math.round((f-parseISO(ap[r.id]))/86400000));
+      if(dif>0&&dif<28) msgs.push("recibió "+r.vac+" hace "+dif+" días: dos vacunas a virus vivos se dan el mismo día o separadas al menos 28 días"); });
+  }
+  const c=contraindicacion(p,rule,f);
+  const t=msgs.length? "Dosis antes de tiempo: "+msgs.join("; ")+"." : "";
+  return (t||c)? [t,c].filter(Boolean).join(" ") : null;
+}
+function contraindicacion(p,rule,f){
+  const out=[]; const m=edadMeses(p.nac,f||hoy);
+  if(p.embarazada && rule.vivo===true) out.push(rule.vac+" está contraindicada en el embarazo.");
+  if(tieneCond(p,"inmuno") && (rule.vivo||rule.id==="bcg")) out.push("Paciente inmunodeprimido: las vacunas a microorganismos vivos ("+rule.vac+") pueden estar contraindicadas. Consultá con el médico tratante.");
+  if(rule.vac==="Fiebre amarilla"){ if(m!=null&&m>=720) out.push("Fiebre amarilla: contraindicada en mayores de 60 años."); if(m!=null&&m<9) out.push("Fiebre amarilla: no se aplica antes de los 9 meses (contraindicada antes de los 6)."); if(tieneCond(p,"puerpera")) out.push("Fiebre amarilla: no aplicar durante la lactancia exclusiva (hasta los 6 a 8 meses del bebé)."); }
+  if(rule.vac==="Dengue" && tieneCond(p,"puerpera")) out.push("Dengue: contraindicada durante la lactancia.");
+  return out.length? "Precaución: "+out.join(" ") : "";
 }
 
 /* ===================== INFORME MENSUAL ===================== */
@@ -836,7 +912,7 @@ function abrirCatalogo(){
     VACUNAS.filter(v=>!t||norm(v).includes(t)).forEach(v=>{ const rs=CAL.filter(r=>r.vac===v);
       lista.append(el("details",{class:"card"},el("summary",{},v+" · "+rs.length+(rs.length===1?" dosis":" dosis/esquemas")),
         el("div",{class:"tbl-wrap"},el("table",{},el("tr",{},["Dosis","Esquema / edad","Tipo"].map(h=>el("th",{},h))),
-          rs.map(r=>el("tr",{},[r.dosis,r.grupo,r.tipo==="anual"?"Anual":r.tipo==="cada10"?"Cada 10 años":r.zona?"Según zona":r.cond?"Embarazo":"Calendario"].map(x=>el("td",{},x))))))));
+          rs.map(r=>el("tr",{},[r.dosis,r.grupo,r.tipo==="anual"?"Anual":r.tipo==="cada10"?"Cada "+((r.meses||120)/12)+" años":r.zona?"Según zona":r.cond?"Según condición":"Calendario"].map(x=>el("td",{},x))))))));
     }); }
   pintar();
   abrirOverlay("Catálogo de vacunas",el("div",{style:"display:flex;flex-direction:column;gap:14px"},q,el("p",{class:"small muted"},"Las vacunas y dosis que la app usa para calcular faltantes, según el Calendario Nacional. Condiciones para registrar: "+CONDICIONES.join(", ")+"."),lista));
@@ -845,10 +921,10 @@ function abrirCatalogo(){
 /* ===================== REGISTRO DE APLICACIONES ===================== */
 const LUGARES=["Vacunatorio","Escuela","Visita domiciliaria","Campaña / operativo","Otro"];
 const CONDICIONES=["Calendario nacional","Embarazo / puerperio","Puerperio","Factor de riesgo","Mayor de 65 años","Personal de salud","Personal estratégico","Sin factor de riesgo","Campaña","Viajero","Otra"];
-function condSugerida(p,rule){ if(rule){ if(rule.cond==="embarazada") return "Embarazo / puerperio"; if(rule.cond==="puerpera") return "Puerperio"; if(rule.cond==="riesgo") return "Factor de riesgo"; if(rule.cond==="personal_salud") return "Personal de salud"; if(rule.cond==="estrategico") return "Personal estratégico"; if(rule.id==="gripe_65"||rule.id==="neumo_65") return "Mayor de 65 años"; }
+function condSugerida(p,rule){ if(rule){ if(rule.cond==="embarazada") return "Embarazo / puerperio"; if(rule.cond==="puerpera") return "Puerperio"; if(rule.cond==="riesgo") return "Factor de riesgo"; if(rule.cond==="personal_salud") return "Personal de salud"; if(rule.cond==="estrategico") return "Personal estratégico"; if(rule.cond==="riesgo_neumo"||rule.cond==="hepa_riesgo"||rule.cond==="inmuno") return "Factor de riesgo"; if(rule.cond==="ps_lactantes") return "Personal de salud"; if(rule.id==="gripe_65"||rule.id==="neumo_65") return "Mayor de 65 años"; }
   if(p.embarazada) return "Embarazo / puerperio"; if(tieneCond(p,"puerpera")) return "Puerperio"; if(tieneCond(p,"riesgo")) return "Factor de riesgo"; return "Calendario nacional"; }
 function faltaPrevia(p,rule){ if(rule.tipo||rule.cond) return null; const idx=CAL.indexOf(rule); const ap=p.aplicadas||{};
-  const prev=CAL.slice(0,idx).filter(r=>r.vac===rule.vac&&!r.tipo&&!r.cond&&!r.zona&&!ap[r.id]&&!(r.cubiertoPor&&r.cubiertoPor.some(k=>ap[k]))&&estadoDosis(p,r).e!=="fuera");
+  const prev=CAL.slice(0,idx).filter(r=>r.vac===rule.vac&&!r.tipo&&!r.cond&&!r.zona&&!ap[r.id]&&!(r.cubiertoPor&&r.cubiertoPor.some(k=>ap[k]))&&["atrasada","pendiente"].includes(estadoDosis(p,r).e));
   return prev.length?prev.map(r=>r.dosis).join(", "):null; }
 function ultimoRegistro(p,id){ const h=(p.historial||[]).filter(x=>x.dosis===id).sort((a,b)=>a.fecha<b.fecha?1:-1); return h[0]||null; }
 function recalcular(p,id){ const h=(p.historial||[]).filter(x=>x.dosis===id).sort((a,b)=>a.fecha<b.fecha?1:-1); p.aplicadas=p.aplicadas||{}; if(h[0]) p.aplicadas[id]=h[0].fecha; else delete p.aplicadas[id]; }
@@ -885,7 +961,7 @@ function registrarAplicacion(p,rule){
     const nuevo={rid:r?r.rid:uid(),dosis:rule.id,fecha:g("fecha").value,lote:g("lote").value.trim().toUpperCase(),vacunador:g("vacunador").value.trim(),lugar:g("lugar").value,establecimiento:g("establecimiento").value.trim(),condicion:g("condicion").value,obs:g("obs").value.trim(),esavi:g("esavi").checked};
     if(!nuevo.fecha){ toast("Poné la fecha"); return; }
     const temprano=avisoTemprano(p,rule,nuevo.fecha);
-    if(temprano&&!form.dataset.okTemprano){ form.dataset.okTemprano="1"; const box=form.querySelector("#a-temprano"); if(box){ box.hidden=false; box.textContent=temprano+" Revisalo. Si es correcto, tocá Guardar otra vez."; } toast("Atención: dosis antes de tiempo"); return; }
+    if(temprano&&!form.dataset.okTemprano){ form.dataset.okTemprano="1"; const box=form.querySelector("#a-temprano"); if(box){ box.hidden=false; box.textContent=temprano+" Revisalo. Si es correcto, tocá Guardar otra vez."; } toast("Atención: revisá el aviso en rojo"); return; }
     const lt=(S.lotes||[]).find(l=>l.vacuna===rule.vac&&l.lote===nuevo.lote);
     if(lt&&lt.vence&&lt.vence<nuevo.fecha&&!form.dataset.okVencido){ form.dataset.okVencido="1"; toast("Atención: ese lote estaba VENCIDO en esa fecha. Tocá Guardar otra vez para confirmar."); return; }
     if(r) Object.assign(r,nuevo); else p.historial.push(nuevo);
@@ -1227,13 +1303,13 @@ async function hash(t){ try{ const b=await crypto.subtle.digest("SHA-256",new Te
 /* ===================== PESTAÑA: CALENDARIO ===================== */
 function vCalendario(v){
   v.append(el("h2",{},"Calendario que usa la app"));
-  v.append(el("div",{class:"note"},"Basado en el Calendario Nacional de Vacunación (versión de diciembre de 2025). Revisalo con el documento oficial y avisame si algo cambió, así lo corrijo."));
+  v.append(el("div",{class:"note"},"Basado en el Calendario Nacional de Vacunación y en el Manual de Vacunación 2025 de la Provincia de Salta (edades, intervalos mínimos, recupero de esquemas y grupos de riesgo). Revisalo con el documento oficial y avisame si algo cambió, así lo corrijo."));
   v.append(el("div",{class:"card"},el("h3",{},"Vacunas según la zona"),
-    el("label",{class:"check"},el("input",{type:"checkbox",id:"z-fa",checked:S.ajustes.fa,onchange:e=>{S.ajustes.fa=e.target.checked;save();}})," Fiebre amarilla (zonas de riesgo de Salta)"),
-    el("label",{class:"check"},el("input",{type:"checkbox",id:"z-dengue",checked:S.ajustes.dengue,onchange:e=>{S.ajustes.dengue=e.target.checked;save();}})," Dengue (15 a 39 años, departamentos priorizados)"),
+    el("label",{class:"check"},el("input",{type:"checkbox",id:"z-fa",checked:S.ajustes.fa,onchange:e=>{S.ajustes.fa=e.target.checked;save();}})," Fiebre amarilla (en Salta: Orán, San Martín, Anta y Rivadavia)"),
+    el("label",{class:"check"},el("input",{type:"checkbox",id:"z-dengue",checked:S.ajustes.dengue,onchange:e=>{S.ajustes.dengue=e.target.checked;save();}})," Dengue (15 a 39 años en San Martín, Orán, Rivadavia, Anta, Gral. Güemes, Rosario de la Frontera y Metán)"),
     el("p",{class:"small muted"},"Activalas solo si en tu centro de salud corresponde aplicarlas.")));
   const l=el("div",{class:"list"}); let g=null;
-  CAL.forEach(r=>{ if(r.grupo!==g){g=r.grupo; l.append(el("div",{class:"group-h"},g));} l.append(el("div",{class:"dose"},el("div",{},el("b",{},r.vac)," · "+r.dosis), el("span",{class:"small muted"},r.tipo==="anual"?"cada año":r.tipo==="cada10"?"cada 10 años":r.zona?"según zona":r.cond?"embarazo":""))); });
+  CAL.forEach(r=>{ if(r.grupo!==g){g=r.grupo; l.append(el("div",{class:"group-h"},g));} l.append(el("div",{class:"dose"},el("div",{},el("b",{},r.vac)," · "+r.dosis), el("span",{class:"small muted"},r.tipo==="anual"?"cada año":r.tipo==="cada10"?"cada "+((r.meses||120)/12)+" años":r.zona?"según zona":r.cond?"según condición":""))); });
   v.append(l);
   v.append(el("p",{class:"small"},el("a",{href:"https://www.argentina.gob.ar/sites/default/files/2025-12-23_calendario_nacional_vacunacion.pdf",target:"_blank",rel:"noopener"},"Ver el Calendario Nacional oficial (PDF)")));
 }
