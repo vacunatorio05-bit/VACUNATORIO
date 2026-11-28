@@ -307,7 +307,7 @@ const CAL = [
   {id:"mening2", vac:"Meningococo ACWY", dosis:"2ª", edad:5, max:23, tras:[["mening1",56]], nacidoDesde:"2016-10-01", omitir:(p,ap)=>inicio(p,ap,"mening1")>=7, grupo:"5 meses"},
   {id:"quin3", vac:"Quíntuple (pentavalente)", dosis:"3ª", edad:6, max:59, tras:[["quin2",28]], grupo:"6 meses"},
   {id:"ipv3", vac:"IPV (Salk)", dosis:"3ª", edad:6, max:83, tras:[["ipv2",28]], omitir:(p,ap)=>inicio(p,ap,"ipv1")>=84, grupo:"6 meses"},
-  {id:"gripe_ninos", vac:"Antigripal", dosis:"Anual (6 a 24 meses)", tipo:"anual", familia:"gripe", edad:6, max:24, grupo:"6 meses"},
+  {id:"gripe_ninos", vac:"Antigripal", dosis:"Anual (6 a 35 meses: 2 dosis la primera vez)", tipo:"anual", familia:"gripe", edad:6, max:35, grupo:"6 meses"},
   {id:"gripe_primo", vac:"Antigripal", dosis:"2ª dosis (primera vez que se vacuna, hasta 8 años)", especial:"gripe2", familia:"gripe", edad:6, max:107, grupo:"6 meses"},
   {id:"neumo_ref", vac:"Neumococo conjugada", dosis:"Refuerzo", edad:12, max:59, minDias:365, tras:[["neumo2",56],["neumo1",56]], omitir:(p,ap)=>inicio(p,ap,"neumo1")>=24, grupo:"12 meses"},
   {id:"hepa", vac:"Hepatitis A", dosis:"Única", edad:12, minDias:365, nacidoDesde:"2004-01-01", grupo:"12 meses"},
@@ -336,7 +336,7 @@ const CAL = [
   {id:"dt", vac:"Doble adultos (dT)", dosis:"Refuerzo cada 10 años", tipo:"cada10", edad:192, cuentan:["dtpa11","dt","dtpa_rec"], grupo:"Adultos"},
   {id:"gripe_65", vac:"Antigripal", dosis:"Anual (65 años y más)", tipo:"anual", familia:"gripe", edad:780, grupo:"65 años y más"},
   {id:"neumo_65", vac:"Neumococo conjugada", dosis:"VCN20 única (65 años y más)", edad:780, grupo:"65 años y más"},
-  {id:"gripe_riesgo", vac:"Antigripal", dosis:"Anual (2 a 64 años con factor de riesgo)", tipo:"anual", familia:"gripe", cond:"riesgo", edad:24, max:779, grupo:"Factores de riesgo"},
+  {id:"gripe_riesgo", vac:"Antigripal", dosis:"Anual (3 a 64 años con factor de riesgo)", tipo:"anual", familia:"gripe", cond:"riesgo", edad:36, max:779, grupo:"Factores de riesgo"},
   {id:"neumo20_r", vac:"Neumococo conjugada", dosis:"VCN20 única (5 a 64 años con factor de riesgo)", cond:"riesgo_neumo", edad:60, max:779, grupo:"Factores de riesgo"},
   {id:"hepa_r1", vac:"Hepatitis A", dosis:"1ª (grupo de riesgo)", cond:"hepa_riesgo", edad:12, cubiertoPor:["hepa"], grupo:"Factores de riesgo"},
   {id:"hepa_r2", vac:"Hepatitis A", dosis:"2ª (grupo de riesgo, 6 meses después)", cond:"hepa_riesgo", edad:12, tras:[["hepa_r1",182],["hepa",182]], requiereAlguna:["hepa","hepa_r1"], grupo:"Factores de riesgo"},
@@ -360,7 +360,7 @@ const CAL = [
 ];
 
 /* ===================== CONDICIONES DEL PACIENTE ===================== */
-// Cada factor dice qué vacunas indica: g = antigripal (2 a 64 años), n = neumococo VCN20 (5 a 64 años), a = hepatitis A 2 dosis.
+// Cada factor dice qué vacunas indica: g = antigripal (3 a 64 años; antes de los 3 va por calendario), n = neumococo VCN20 (5 a 64 años), a = hepatitis A 2 dosis.
 const RIESGOS=[["diabetes","Diabetes","gn"],["respiratoria","Enfermedad respiratoria crónica (EPOC, asma moderada/grave…)","gn"],["cardiaca","Enfermedad cardíaca (insuficiencia, coronaria, valvulopatía, congénita)","gn"],
   ["renal","Insuficiencia renal crónica (diálisis o próxima a diálisis)","gn"],["inmuno","Inmunodepresión (VIH, oncológico, trasplante, asplenia, corticoides altas dosis)","gna"],["obesidad","Obesidad mórbida (IMC mayor a 40)","g"],
   ["neuro","Enf. neuromuscular, retraso madurativo grave o síndrome genético","g"],["hepatica","Enfermedad hepática crónica","na"],["fistula","Fístula de LCR o implante coclear","n"],["hemofilia","Hemofilia","a"],
@@ -457,9 +457,9 @@ function estadoDosis(p,r){
     if(fechas[0] && addMonths(fechas[0],meses)>hoy) return {e:"ok",f:iso(fechas[0]),vence:iso(addMonths(fechas[0],meses))};
     return {e:fechas[0]?"atrasada":"pendiente"};
   }
-  if(r.especial==="gripe2"){ // primovacunación: 2 dosis separadas 4 semanas (6-24 meses, o hasta 8 años con factor de riesgo)
+  if(r.especial==="gripe2"){ // primovacunación: 2 dosis separadas 4 semanas (6-35 meses, o hasta 8 años con factor de riesgo)
     if(ap[r.id] && parseISO(ap[r.id]).getFullYear()===hoy.getFullYear()) return {e:"ok",f:ap[r.id]};
-    if(m<r.edad||m>r.max||(m>24&&!tieneCond(p,"riesgo"))) return {e:"nocorresponde"};
+    if(m<r.edad||m>r.max||(m>35&&!tieneCond(p,"riesgo"))) return {e:"nocorresponde"};
     const fs=dosisGripe(p); if(fs.length!==1||parseISO(fs[0]).getFullYear()!==hoy.getFullYear()) return {e:"nocorresponde"};
     const due=addDias(parseISO(fs[0]),28); if(due>hoy){ return {e:(due-hoy)/86400000<=30?"proxima":"futura",due:iso(due)}; }
     return {e:"pendiente",due:iso(due)};
@@ -1409,6 +1409,7 @@ const OTRAS=[
   {id:"x_sr1",vac:"Doble viral (SR)",dosis:"1ª",libre:true,grupo:"Otras vacunas"},
   {id:"x_sr2",vac:"Doble viral (SR)",dosis:"2ª",libre:true,grupo:"Otras vacunas"},
   {id:"x_vcn13",vac:"Neumococo conjugada VCN13",dosis:"Dosis",libre:true,grupo:"Otras vacunas"},
+  {id:"x_menb",vac:"Meningococo B",dosis:"Dosis",libre:true,grupo:"Otras vacunas"},
   {id:"x_vpn23",vac:"Neumococo polisacárida 23",dosis:"Dosis",libre:true,grupo:"Otras vacunas"},
   {id:"x_rab",vac:"Antirrábica",dosis:"Dosis",libre:true,grupo:"Otras vacunas"},
   {id:"x_covid",vac:"COVID-19",dosis:"Dosis",libre:true,grupo:"Otras vacunas"},
@@ -1436,6 +1437,7 @@ const GRILLA=[
   ["Tetravalente contra el Dengue","TETRAVALENTE CONTRA EL DENGUE","DENGUE",[["1ra Dosis","dengue"],["2da Dosis","dengue2"]],["dengue"]],
   ["Doble Viral","Sarampión y Rubéola","Doble Viral",[["1ra Dosis","x_sr1 dv_ps1"],["2da Dosis","x_sr2 dv_ps2"],["Unica Dosis","puerp_dv"]]],
   ["Neumococo Conjugada VCN 13","Antineumocócica","VCN-13",[["Dosis","x_vcn13"]],["vcn 13","vcn13"]],
+  ["Meningococo B","Antimeningococica B","MenB",[["Dosis","x_menb"]],["meningococo b","menb","bexsero"]],
   ["Neumococo Polisacárida 23","Neumococcica Polisacarida 23","NP23",[["Dosis","x_vpn23"]],["polisacarida","np23"]],
   ["Antirrábica","Antirrábica","ATR",[["Dosis","x_rab"]],["rabica"]],
   ["Sabín (OPV)","Sabín Bivalente (Poliomielitis)","bOPV",[["Dosis","x_opv"]],["sabin","bopv","poliomelitis","poliomielitis"]],
@@ -1590,7 +1592,8 @@ function grillaDe(vacT,sigla){ const n=norm(vacT), s=norm(sigla||"");
   if(/antigripal|gripe/.test(n)||s==="atg") return GRILLA.find(g=>g[0]==="Antigripal");
   return GRILLA.find(g=>s&&norm(g[2])===s)||GRILLA.find(g=>norm(g[0])===n||norm(g[1])===n)||GRILLA.find(g=>(g[4]||[]).some(a=>n.includes(a)||(s&&s.includes(a))))||null; }
 function reglaExterna(p,vacT,sigla,dosisT,cond,edadM,fa){
-  const g=grillaDe(vacT,sigla); if(!g) return null; const ap=p.aplicadas||{};
+  let g=grillaDe(vacT,sigla); if(!g) return null; const ap=p.aplicadas||{};
+  if(g[0]==="Doble Bacteriana"&&edadM!=null&&edadM>=84&&edadM<192) g=GRILLA.find(x=>x[0]==="Triple Bacteriana Acelular")||g; // la dT es solo de adultos: de 7 años en adelante, en chicos va dTpa
   const d=norm(dosisT||""); const num=(/(\d)/.exec(d)||[])[1]||""; const k=/ref/.test(d)?"ref":/unica/.test(d)?"uni":/anual/.test(d)?"anual":/neonat/.test(d)?"neo":num;
   const coincide=([lab])=>{ const l=norm(lab); return k==="ref"?/ref/.test(l):k==="uni"?/unica/.test(l):k==="anual"?/anual/.test(l):k==="neo"?/neonat/.test(l):k?(/(\d)/.exec(l)||[])[1]===k:false; };
   const reglas=xs=>xs.flatMap(x=>x[1].split(" ")).map(regla).filter(Boolean);
@@ -1728,8 +1731,8 @@ const SIGLAS_VAC=[
  [/\b(?:vc ?n? ?-? ?20|pcv ?-? ?20|vpc ?-? ?20|prevenar ?-? ?20)\b|apexxnar|neumoc\w*[^|]{0,30}\b20\b/g,V_N20,"neumo"],
  [/\b(?:vc ?n? ?-? ?15|pcv ?-? ?15|vpc ?-? ?15)\b|vaxneuvance|neumoc\w*[^|]{0,30}\b15\b/g,null,"neumo",0,"Neumococo conjugada 15 (VCN 15)"],
  [/\b(?:np ?-? ?23|vpn ?-? ?23|ppsv ?-? ?23|vnp ?-? ?23|vpp ?-? ?23)\b|polisac\w*|neumoc\w*[^|]{0,30}\b23\b/g,V_N23,"neumo"],
- [/neumoc\w*|\bneumo\b|prevenar|\bvc ?n\b|\bpcv\b|\bvpc\b|\bvc\b/g,undefined,"neumo",[V_N13,V_N20],"Neumocócica (no dice si 13 o 20)"],
- [/mening\w*[^|]{0,15}\bb\b|\bmen ?b\b|\bmenb\b|bexsero|trumenba|4cmenb/g,null,"men",0,"Meningococo B"],
+ [/neumoc\w*|\bneumo\b|prevenar|\bvc ?n\b|\bpcv\b|\bvpc\b|\bvc\b/g,undefined,"neumo",[V_N13,V_N20],"Neumocócica","",V_N20],
+ [/mening\w*[^|]{0,15}\bb\b|\bmen ?b\b|\bmenb\b|bexsero|trumenba|4cmenb/g,"Meningococo B","menb",0,"Meningococo B"],
  [/acwy|menactra|nimenrix|menveo|\bamc\b|\bmcv ?4\b|menacwy|mening\w*[^|]{0,20}tetravalente/g,V_MEN,"men"],
  [/mening\w*/g,V_MEN,"men",0,"Meningocócica","dice «meningocócica» sin aclarar ACWY o B: la tomé como tetravalente (ACWY)"],
  [/triple bacteriana acelular|\bdtpa\b|\bdpta\b|\btdpa\b|\bdtap\b|acelular/g,V_TBA,"tb"],
@@ -1755,12 +1758,13 @@ const SIGLAS_VAC=[
  [/antigripal|\bgripe\b|influenza|\batg\b/g,"Antigripal","gripe"],
  [/varicela|\bavc\b/g,"Varicela","varic"],
  [/covid|pfizer|comirnaty|moderna|sinopharm|astrazeneca|sputnik/g,"COVID-19","covid"]];
-function vacHits(n){ let t=" "+String(n||"")+" "; const hits=[]; for(const [re,vac,fam,cands,lab,soft] of SIGLAS_VAC){ t=t.replace(re,s=>{ hits.push({vac,fam,cands:cands||null,gen:vac===undefined,lab:lab||vac,soft:soft||"",txt:s.trim()}); return " "; }); } return hits; }
+function vacHits(n){ let t=" "+String(n||"")+" "; const hits=[]; for(const [re,vac,fam,cands,lab,soft,def] of SIGLAS_VAC){ t=t.replace(re,s=>{ hits.push({vac,fam,cands:cands||null,gen:vac===undefined,lab:lab||vac,soft:soft||"",def:def||"",txt:s.trim()}); return " "; }); } return hits; }
 // Resuelve: una sigla exacta o una descripción manda; la genérica solo se usa si no hay nada más específico de la misma vacuna; si hay dudas, queda vacío y se pregunta.
 function vacResolver(n){ const hits=vacHits(n); if(!hits.length) return {estado:"nada",vac:"",cands:[],hits,nota:""};
   const fams={}; hits.forEach(h=>{ (fams[h.fam]=fams[h.fam]||[]).push(h); }); const fin=[];
   for(const f in fams){ const H=fams[f], esp=H.filter(h=>!h.gen);
     if(esp.length){ const vs=[...new Set(esp.map(h=>h.vac))]; if(vs.length===1) fin.push({vac:vs[0],lab:esp[0].lab,soft:esp[0].soft}); else vs.forEach(v=>fin.push({vac:v,lab:esp.find(h=>h.vac===v).lab,conf:true})); }
+    else if(H[0].def) fin.push({vac:H[0].def,lab:H[0].lab,soft:"dice «"+H[0].txt+"» sin número: la tomé como neumococo conjugada 20 (el calendario actual). Si era la 13, cambiala"});
     else { const c=[...new Set(H.flatMap(h=>h.cands))]; fin.push({gen:true,cands:c,lab:H[0].lab}); } }
   if(fin.length===1&&!fin[0].gen&&!fin[0].conf){ const f=fin[0]; return f.vac?{estado:"ok",vac:f.vac,cands:[f.vac],hits,nota:f.soft}:{estado:"sinapp",vac:"",cands:[],hits,nota:"«"+f.lab+"» no está en la lista de la app: elegí otra o dejala sin vacuna (anotala en OTRAS del carnet)"}; }
   const c=[...new Set(fin.flatMap(f=>f.gen?f.cands:(f.vac?[f.vac]:[])))]; const nom=fin.map(f=>f.lab).filter(Boolean);
@@ -1929,7 +1933,7 @@ const GUIA=[
   inter:"Mínimo 8 semanas entre dosis. Se puede dar con cualquier vacuna sin intervalo.",contra:["Alergia a componentes.","Fiebre > 38 °C en las 24 h previas o enfermedad aguda grave."],prec:["Enfermedad moderada: postergar.","Trombocitopenia o trastornos de coagulación."],
   efectos:"Dolor, eritema 1-2 días; febrícula, decaimiento hasta 72 h.",notas:"Reconstituir con el diluyente del laboratorio y aplicar enseguida. Huéspedes especiales: asplenia, déficit de complemento, VIH, personal de laboratorio.",cons:"2 a 8 °C (polvo y solvente)."},
  {g:"Antigripal",n:"Antigripal",prev:"Complicaciones graves de la gripe.",tipo:"Virus inactivado",via:"Intramuscular (90°)",sitio:"Muslo en menores de 1 año o que no caminan; brazo en mayores",dosis:"0,25 ml pediátrica (menores de 3 años) · 0,5 ml adulto",aguja:"23 G",
-  esq:["6 a 24 meses: 2 dosis de 0,25 ml separadas 4 semanas la primera vez; después 1 por año.","24 a 35 meses con riesgo: 2 dosis de 0,25 ml si nunca se vacunó; si no, 1.","3 a 8 años con riesgo: 2 dosis de 0,5 ml si nunca se vacunó; si no, 1.","9 a 64 años con factores de riesgo, 65 años o más, personal de salud y de seguridad: 1 dosis anual de 0,5 ml.","Embarazadas: en cualquier trimestre. Puérperas: hasta 10 días si no la recibió embarazada."],
+  esq:["6 a 35 meses (hasta los 3 años): 2 dosis de 0,25 ml separadas 4 semanas la primera vez; después 1 por año.","24 a 35 meses con riesgo: 2 dosis de 0,25 ml si nunca se vacunó; si no, 1.","3 a 8 años con riesgo: 2 dosis de 0,5 ml si nunca se vacunó; si no, 1.","9 a 64 años con factores de riesgo, 65 años o más, personal de salud y de seguridad: 1 dosis anual de 0,5 ml.","Embarazadas: en cualquier trimestre. Puérperas: hasta 10 días si no la recibió embarazada."],
   contra:["Reacción alérgica grave (anafilaxia) a una dosis previa."],efectos:"Dolor, induración, fiebre, malestar.",cons:"2 a 8 °C."},
  {g:"Hepatitis A",n:"Hepatitis A",prev:"Hepatitis A.",tipo:"Virus inactivado",via:"Intramuscular (90°)",sitio:"Deltoides",dosis:"0,5 ml pediátrica · 1 ml adulto (desde 18-19 años según laboratorio)",aguja:"23 G",
   esq:["12 meses: dosis única. Recupero: nacidos desde 1/1/2004, una dosis.","Grupos de riesgo: 2 dosis (0 y 6 meses): hepatopatía crónica, manipuladores de alimentos, limpieza en salud y educación, cloacas, hemofilia, VIH, inmunocomprometidos."],
