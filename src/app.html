@@ -1240,7 +1240,7 @@ function pasoVacuna(p, previo){
     if(!previo&&act.length&&!lote.dataset.tocado) lote.value=act[0].l.lote; if(!act.length&&!lote.dataset.tocado&&!previo) lote.value="";
     stockInfo.textContent=act.length?"En stock: "+act.map(x=>x.l.lote+" ("+x.e.st+", vence "+fmt(x.l.vence)+")").join(" · "):""; }
   lote.addEventListener("input",()=>lote.dataset.tocado="1");
-  const cond=selCondicion("fr-cond",previo?previo.condicion:condSugerida(p,sugerida));
+  const cond=selCondicion("fr-cond",previo?previo.condicion:condSugerida(p,sugerida),p);
   const est=el("input",{id:"fr-est",value:previo?previo.establecimiento:(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos")});
   const vacunador=el("input",{id:"fr-vacunador",value:previo?previo.vacunador:(S.ajustes.vacunador||"")});
   const form=el("form",{class:"form card"},
@@ -1381,7 +1381,8 @@ const dosisSisa=rule=>(GR_DE[rule.id]||{}).d||rule.dosis;
 function dosisAcuario(rule,p,fecha){ const d=dosisSisa(rule); const n=(/^(\d)/.exec(d)||[])[1];
   if(n) return n+["","ra","da","ra","ta","ta"][+n]+" Dosis"; if(/Refuerzo/.test(d)) return "Refuerzo";
   const prev=((p&&p.historial)||[]).some(h=>h.fecha<fecha&&mismaVacuna(h.dosis,rule.id)); return prev?"Refuerzo":"1ra Dosis"; }
-const ESQUEMAS=[["Calendario",["Regular","Regular Lactantes","Regular Adolescentes","Atrasado","Atrasado Lactantes","Atrasado Adolescente","Calendario Nacional","Adultos","65 años o más","Mayores de 65 Años"]],
+const ESQUEMAS=[["Calendario regular",["Regular","Regular Lactantes","Regular Adolescentes","Calendario Nacional","Adultos","65 años o más","Mayores de 65 Años"]],
+  ["Calendario atrasado",["Atrasado","Atrasado Lactantes","Atrasado Adolescente"]],
   ["Factor de riesgo",["Otros Factores de Riesgo","Respiratorio","Diabético","Cardiológico","Obesidad Mórbida","Inmunocomprometido","Inmunodeficiencia","Conviviente Inmunocomprometido","Mayores de 5 años con Factores de Riesgo","Personas con factores de riesgo","Déficit de complemento mayor de 5 años"]],
   ["Embarazo y puerperio",["Embarazo","Puerperio"]],
   ["Personal",["Personal de Salud","Personal Esencial"]],
@@ -1393,8 +1394,27 @@ function grupoCond(c){ c=condNueva(c); const g=ESQUEMAS.find(x=>x[1].includes(c)
 function motivoAcuario(c){ c=condNueva(c); if(!c) return "sin especificar"; if(c==="Embarazo") return "Embarazo"; if(c==="Puerperio") return "Puerperio"; if(c==="Personal de Salud") return "Personal de salud"; if(c==="Campaña") return "Campaña";
   if(grupoCond(c)==="Factor de riesgo"||c==="Personal Esencial"||c==="Prescripción Medica") return "Población de Riesgo"; return "Calendario Nacional"; }
 const DESDE_ACUARIO={"calendario nacional":"Regular","poblacion de riesgo":"Otros Factores de Riesgo","embarazo":"Embarazo","puerperio":"Puerperio","personal de salud":"Personal de Salud","campana":"Campaña"};
-function selCondicion(id,valor){ valor=condNueva(valor); const s=el("select",{id},ESQUEMAS.map(([g,xs])=>{ const o=el("optgroup",{},xs.map(x=>el("option",{value:x,selected:x===valor},x))); o.label=g; return o; }));
-  if(valor&&!CONDICIONES.includes(valor)) s.prepend(el("option",{value:valor,selected:true},valor)); return s; }
+// Condición en dos pasos desplegables: 1) el tipo (calendario regular, atrasado, factores de riesgo…) y 2) el nombre exacto como en SISA. Nada viene tildado.
+const ROT_COND={"Calendario regular":"Calendario regular (vacunas que se colocan según su edad)","Calendario atrasado":"Calendario atrasado (fuera de la edad de administración)","Factor de riesgo":"Factores de riesgo","Embarazo y puerperio":"Embarazo y puerperio","Personal":"Personal de salud y esencial","Otros":"Otros (excepción, prescripción médica, campaña)"};
+function ayudaCond(p,tipo){ if(!p) return ""; const nm=r=>(GR_DE[r.id]?GR_DE[r.id].g[0]:r.vac)+" ("+dosisSisa(r)+")";
+  try{ if(tipo==="Calendario regular"){ const r=resumen(p); const l=(r.pendiente||[]); return l.length?"Le tocan por edad: "+l.map(nm).join(", ")+".":"Por edad no tiene ninguna pendiente."; }
+    if(tipo==="Calendario atrasado"){ const r=resumen(p); const l=(r.atrasada||[]); return l.length?"Atrasadas: "+l.map(nm).join(", ")+".":"No tiene vacunas atrasadas."; }
+    if(tipo==="Factor de riesgo"){ const l=CAL.filter(r=>/riesgo|inmuno/.test(r.cond||"")); return "Con factor de riesgo corresponden: "+[...new Set(l.map(nm))].slice(0,10).join(", ")+"."; }
+    if(tipo==="Embarazo y puerperio") return "Embarazo: antigripal, dTpa (desde la semana 20), VSR (semana 32 a 36), hepatitis B. Puerperio: antigripal hasta 10 días.";
+    if(tipo==="Personal") return "Personal de salud: hepatitis B, triple viral, antigripal anual, dTpa."; }catch(e){}
+  return ""; }
+function selCondicion(id,valor,paciente){ valor=condNueva(valor);
+  const tipos=ESQUEMAS.map(x=>x[0]); const tipoDe=v=>(ESQUEMAS.find(x=>x[1].includes(v))||[])[0]||"Calendario regular";
+  const tsel=el("select",{"aria-label":"Tipo de condición"},ESQUEMAS.map(([g])=>el("option",{value:g},ROT_COND[g]||g)));
+  const nsel=el("select",{"aria-label":"Condición exacta (como en SISA)"});
+  const ayuda=el("div",{class:"small muted"});
+  const llenar=(tipo,sel)=>{ const xs=(ESQUEMAS.find(x=>x[0]===tipo)||ESQUEMAS[0])[1]; nsel.replaceChildren(...xs.map(x=>el("option",{value:x},x))); if(sel&&!xs.includes(sel)) nsel.prepend(el("option",{value:sel},sel)); nsel.value=sel&&(xs.includes(sel)||sel)?sel:xs[0]; ayuda.textContent=ayudaCond(paciente,tipo); };
+  const w=el("div",{id,class:"cond2",style:"display:flex;flex-direction:column;gap:6px"},tsel,nsel,ayuda);
+  const t0=tipoDe(valor||"Regular"); tsel.value=t0; llenar(t0,valor||(ESQUEMAS.find(x=>x[0]===t0)[1][0]));
+  tsel.addEventListener("change",e=>{ e.stopPropagation(); llenar(tsel.value,null); w.dispatchEvent(new Event("change")); });
+  nsel.addEventListener("change",e=>{ e.stopPropagation(); w.dispatchEvent(new Event("change")); });
+  Object.defineProperty(w,"value",{get:()=>nsel.value,set:v=>{ v=condNueva(v); const t=tipoDe(v); tsel.value=t; llenar(t,v); }});
+  return w; }
 function condSugerida(p,rule){
   if(!rule) return p.embarazada?"Embarazo":"Regular";
   const c=rule.cond||"", id=rule.id;
@@ -1425,13 +1445,13 @@ function gridVacunas(p,o={}){
       const repetible=!!(rule.tipo||rule.vigenciaDias||rule.libre);
       const st=(!rule.libre&&p.nac)?estadoDosis(p,rule).e:"";
       const bloqueada=!!(hecha&&!repetible);
-      const chk=el("input",{type:"checkbox",class:"vg-chk",value:rule.id,checked:!!(o.preMarcar&&o.preMarcar.has(rule.id)&&!bloqueada),disabled:bloqueada});
+      const chk=el("input",{type:"checkbox",class:"vg-chk",value:rule.id,checked:false,disabled:bloqueada});
       const lab=el("label",{class:"vg-dose"+(bloqueada?" hecha":st==="atrasada"?" atr":st==="pendiente"?" pen":""),title:rule.vac+" · "+rule.dosis},chk,el("span",{},d),hecha?el("small",{},"✓ "+fmt(hecha)):null);
       return {rule,chk,lab,st,bloqueada}; }).filter(Boolean);
     if(!chips.length) return;
     const act=lotesActivos(chips[0].rule.vac,getF()); const lid="vg-l-"+gi;
     const lote=el("input",{class:"vg-lote",list:lid,placeholder:"Lote",autocapitalize:"characters",value:act[0]?act[0].l.lote:""});
-    const cond=selCondicion("",condSugerida(p,(chips.find(c=>c.chk.checked)||chips.find(c=>!c.bloqueada)||chips[0]).rule)); cond.className="vg-cond";
+    const cond=selCondicion("",condSugerida(p,(chips.find(c=>c.chk.checked)||chips.find(c=>!c.bloqueada)||chips[0]).rule),p); cond.className="vg-cond cond2";
     const acu=el("span",{class:"small muted"});
     const aviso=el("div",{class:"small vg-aviso"});
     const extra=el("div",{class:"vg-extra",hidden:true},el("label",{},"Lote",lote,el("datalist",{id:lid},act.map(x=>el("option",{value:x.l.lote})))),el("label",{},"Condición (como en SISA)",cond,acu));
@@ -1445,7 +1465,7 @@ function gridVacunas(p,o={}){
     filas.push({chips,lote,cond,aviso,toque}); box.append(row); toque();
   });
   function revisar(){ let n=0; filas.forEach(f=>{ const t=f.chips.filter(c=>c.chk.checked).map(c=>c.rule.libre||!p.nac?null:avisoTemprano(p,c.rule,getF())).filter(Boolean); f.aviso.textContent=t.join(" "); n+=t.length; }); return n; }
-  return {node:el("div",{},el("div",{class:"small muted",style:"margin-bottom:6px"},"Están todas las vacunas. Tildá solo las dosis que aplicás. En color: las que le corresponden. ✓: ya aplicadas."),box),revisar,
+  return {node:el("div",{},el("div",{class:"small muted",style:"margin-bottom:6px"},"Están todas las vacunas, sin nada tildado. Tildá solo las dosis que aplicás. En color: las que le corresponden. ✓: ya aplicadas."),box),revisar,
     seleccion:()=>filas.flatMap(f=>f.chips.filter(c=>c.chk.checked).map(c=>({rule:c.rule,lote:f.lote.value.trim().toUpperCase(),condicion:f.cond.value,oportuna:c.st!=="atrasada"})))};
 }
 function registroDe(p,x,f,extra){ return Object.assign({rid:uid(),dosis:x.rule.id,fecha:f,lote:x.lote||"",vacunador:S.ajustes.vacunador||"",lugar:"",establecimiento:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",condicion:x.condicion||condSugerida(p,x.rule),oportuna:x.oportuna!==false,obs:"",esavi:false},extra||{}); }
@@ -1811,7 +1831,7 @@ function registrarAplicacion(p,rule){
     previa? el("div",{class:"full note",style:"background:var(--warn-soft);color:var(--warn)"},"Atención: no figura aplicada la dosis anterior ("+previa+"). Revisá el carnet antes de registrar."):null,
     el("div",{class:"full note",id:"a-temprano",hidden:true,style:"background:var(--bad-soft);color:var(--bad)"}),
     el("label",{},"Fecha de aplicación",el("input",{type:"date",id:"a-fecha",required:true,max:iso(hoy),value:v.fecha,oninput:e=>{form.querySelector("#a-edad").textContent="Edad a esa fecha: "+edadTexto(edadMeses(p.nac,parseISO(e.target.value)||hoy));}}),el("span",{id:"a-edad",class:"small"},"Edad a esa fecha: "+edadTexto(edadMeses(p.nac,parseISO(v.fecha)||hoy)))),
-    el("label",{},"Condición / motivo",selCondicion("a-condicion",v.condicion||condSugerida(p,rule))),
+    el("label",{},"Condición / motivo",selCondicion("a-condicion",v.condicion||condSugerida(p,rule),p)),
     el("label",{class:"full"},"Establecimiento",el("input",{id:"a-establecimiento",value:v.establecimiento||S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos"})),
     el("label",{},"Lote",el("input",{id:"a-lote",value:v.lote,list:"lotes-list",autocapitalize:"characters"})),
     el("datalist",{id:"lotes-list"},lotes.map(l=>el("option",{value:l}))),
@@ -2126,7 +2146,7 @@ function vacunarVarias(p,ctx={}){
   [...r.atrasada,...r.pendiente].forEach(x=>{ if(!ed||CAMP[ed].includes(x.id)) pre.add(x.id); });
   const c=el("div",{style:"display:flex;flex-direction:column;gap:14px"});
   c.append(el("div",{class:"card"},el("b",{},nombreCompleto(p)),el("div",{class:"small muted"},[p.dni&&"DNI "+p.dni,edadTexto(edadMeses(p.nac)),p.escuela&&(p.escuela+" "+(p.curso||"")),textoAut(p)].filter(Boolean).join(" · ")),
-    ed?el("p",{class:"small",style:"margin:6px 0 0"},el("b",{},ed===5?"Ingreso escolar: 4 vacunas":"11 años: 3 vacunas")," (nacido en "+anioNac(p)+", campaña "+anioCampania()+"). Ya vienen tildadas."):null,
+    ed?el("p",{class:"small",style:"margin:6px 0 0"},el("b",{},ed===5?"Ingreso escolar: 4 vacunas":"11 años: 3 vacunas")," (nacido en "+anioNac(p)+", campaña "+anioCampania()+"). Las que le tocan están marcadas en color: tildá las que aplicás."):null,
     p.autorizacion&&p.autorizacion.estado==="no"?el("div",{class:"note",style:"background:var(--bad-soft);color:var(--bad)"},"Atención: figura que NO autorizaron la vacunación."):null));
   const fecha=el("input",{type:"date",id:"vv-fecha",value:iso(hoy),max:iso(hoy),required:true});
   const grid=gridVacunas(p,{preMarcar:pre,fecha:()=>fecha.value});
