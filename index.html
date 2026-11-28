@@ -302,6 +302,7 @@ html,body{max-width:100%;overflow-x:hidden}img,video,canvas,table{max-width:100%
 // tras [[id,días]] (intervalo mínimo desde otra dosis) · requiere (sin esa dosis previa no corresponde)
 // minDias (edad mínima en días) · maxDias (edad máxima en días) · vigenciaDias (vale solo por ese tiempo)
 // omitir(p,ap) (esquema reducido según edad de inicio) · vivo (vacuna a virus vivo)
+const conPrimoTetano=ap=>!!(ap.quin1||ap.quin2||ap.quin3||ap.quin_ref||ap.dtp_esc||ap.dt); // alguna vacuna con tétanos antes (sin registro = no vacunado)
 const inicio=(p,ap,id)=>{ const f=ap[id]; return edadMeses(p.nac, f?parseISO(f):hoy); };
 const CAL = [
   {id:"bcg", vac:"BCG", dosis:"Única", edad:0, max:83, grupo:"Recién nacido"},
@@ -344,7 +345,10 @@ const CAL = [
   {id:"fa_ref", vac:"Fiebre amarilla", dosis:"Refuerzo (si la 1ª fue antes de los 2 años)", edad:132, cohorte:11, max:215, zona:"fa", requiere:"fa1", omitir:(p,ap)=>inicio(p,ap,"fa1")>=24, vivo:true, grupo:"11 años (año en que cumple 11)"},
   {id:"dengue", vac:"Dengue", dosis:"1ª (departamentos priorizados)", edad:180, max:479, zona:"dengue", vivo:true, grupo:"15 a 39 años"},
   {id:"dengue2", vac:"Dengue", dosis:"2ª (3 meses después)", edad:180, zona:"dengue", tras:[["dengue",90]], requiere:"dengue", vivo:true, grupo:"15 a 39 años"},
-  {id:"dt", vac:"Doble adultos (dT)", dosis:"Refuerzo cada 10 años", tipo:"cada10", edad:192, cuentan:["dtpa11","dt","dtpa_rec"], grupo:"Adultos"},
+  {id:"dt", vac:"Doble adultos (dT)", dosis:"Refuerzo cada 10 años", tipo:"cada10", edad:192, cuentan:["dtpa11","dt","dtpa_rec","dt_p1","dt_p2","dt_p3"], omitir:(p,ap)=>!conPrimoTetano(ap)&&!ap.dt_p3, grupo:"Adultos"},
+  {id:"dt_p1", vac:"Doble adultos (dT)", dosis:"1ª (adulto sin antecedente de vacunación)", edad:216, cubiertoPor:["dtpa11","dtpa_rec","dtpa_ps","emb_dtpa","dtpa_conv"], omitir:(p,ap)=>conPrimoTetano(ap), grupo:"Adultos"},
+  {id:"dt_p2", vac:"Doble adultos (dT)", dosis:"2ª (1 mes después de la 1ª; sin antecedente de vacunación)", edad:84, tras:[["dt_p1",28],["dtpa_rec",28],["dtpa11",28],["dtpa_ps",28],["emb_dtpa",28],["dtpa_conv",28]], requiereAlguna:["dt_p1","dtpa_rec","dtpa11","dtpa_ps","emb_dtpa","dtpa_conv"], omitir:(p,ap)=>conPrimoTetano(ap), grupo:"Adultos"},
+  {id:"dt_p3", vac:"Doble adultos (dT)", dosis:"3ª (6 meses después de la 1ª; sin antecedente de vacunación)", edad:84, tras:[["dt_p2",28],["dt_p1",182],["dtpa_rec",182],["dtpa11",182],["dtpa_ps",182],["emb_dtpa",182],["dtpa_conv",182]], requiere:"dt_p2", omitir:(p,ap)=>conPrimoTetano(ap), grupo:"Adultos"},
   {id:"gripe_65", vac:"Antigripal", dosis:"Anual (65 años y más)", tipo:"anual", familia:"gripe", edad:780, grupo:"65 años y más"},
   {id:"neumo_65", vac:"Neumococo conjugada", dosis:"VCN20 única (65 años y más)", edad:780, grupo:"65 años y más"},
   {id:"gripe_riesgo", vac:"Antigripal", dosis:"Anual (3 a 64 años con factor de riesgo)", tipo:"anual", familia:"gripe", cond:"riesgo", edad:36, max:779, grupo:"Factores de riesgo"},
@@ -462,7 +466,7 @@ function estadoDosis(p,r){
     return {e:"pendiente"};
   }
   if(r.tipo==="cada10"){
-    if(m<r.edad) return {e:"nocorresponde"};
+    if(m<r.edad||(r.omitir&&r.omitir(p,ap))) return {e:"nocorresponde"};
     const meses=r.meses||120;
     const fechas=(r.cuentan||[r.id]).map(k=>parseISO(ap[k])).filter(Boolean).sort((a,b)=>b-a);
     if(fechas[0] && addMonths(fechas[0],meses)>hoy) return {e:"ok",f:iso(fechas[0]),vence:iso(addMonths(fechas[0],meses))};
@@ -1441,7 +1445,7 @@ const GRILLA=[
   ["Varicela","Anti Varicela","AVC",[["1ra Dosis","varic1"],["2da Dosis","varic2"]],["varicela"]],
   ["Triple Bacteriana Celular","Difteria, Pertussis, Tétanos","DPT",[["Refuerzo","dtp_esc"]]],
   ["Triple Bacteriana Acelular","Difteria, Pertussis, Tétanos acelular","DPTace",[["Refuerzo","dtpa11 emb_dtpa dtpa_rec dtpa_ps dtpa_conv"]],["dtpa"]],
-  ["Doble Bacteriana","Difteria, Tétanos","Doble Adulto",[["Refuerzo","dt"]],["doble adulto"]],
+  ["Doble Bacteriana","Difteria, Tétanos","Doble Adulto",[["Refuerzo","dt"],["1er Dosis","dt_p1"],["2da Dosis","dt_p2"],["3er Dosis","dt_p3"]],["doble adulto"]],
   ["VPH Nonavalente","ANTI VPH","HPV",[["Unica Dosis","vph"],["2da Dosis","vph2 vph_i2"],["3er Dosis","vph_i3"]],["vph","hpv"]],
   ["Virus Sincicial Respiratorio","VIRUS SINCICIAL RESPIRATORIO","VIRUS SINCICIAL RESPIRATORIO",[["Unica Dosis","emb_vsr"]],["sincicial","vsr"]],
   ["Fiebre Amarilla","Fiebre Amarilla","FA",[["1ra Dosis","fa1"],["Refuerzo","fa_ref"]],["amarilla"]],
@@ -3412,7 +3416,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="31111e31ca";
+window.APP_VER="6ac9e7cdf3";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
