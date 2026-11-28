@@ -1718,27 +1718,70 @@ function parseCamposTexto(texto){ const L=String(texto).split(/\r?\n/).map(x=>x.
     if(!o.telefono&&(m=/(?:tel[eé]fono|tel\.?|celular|cel\.?)[^0-9+]{0,12}([0-9][0-9 \-]{6,})/i.exec(ln))){ o.telefono=m[1].trim(); dud.add("telefono"); } });
   if(o.apellido) o.apellido=o.apellido.toUpperCase(); return {campos:o,dudas:dud}; }
 // Vacunas en un texto: una línea con fecha + nombre de vacuna (o la vacuna de una línea anterior si la fila viene sin nombre)
-const ALIAS_VAC=[[/triple viral|\bsrp\b|sarampion.{0,12}paperas/,"Triple Viral"],[/doble viral|\bsr\b|sarampion.{0,12}rubeola/,"Doble Viral"],[/hepatitis ?b|\bhb\b|anti ?hep.{0,10}b\b/,"Hepatitis B"],[/hepatitis ?a|\bhav?\b/,"Hepatitis A"],
- [/quintuple|pentavalente|\bpenta\b|\bpen\b/,"Quintuple"],[/\bbcg\b|tuberculosis/,"BCG"],[/salk|\bipv\b/,"IPV SALK"],[/sabin|bopv|\bopv\b/,"Sabín (OPV)"],[/rotavirus|\brota\b|rotv/,"Rotavirus Monovalente"],
- [/neumococ.{0,25}\b13\b|vcn ?13|prevenar 13/,"Neumococo Conjugada VCN 13"],[/polisac|\bnp ?23\b|neumo.{0,12}23|vpn ?23/,"Neumococo Polisacárida 23"],[/neumococ|\bvcn|\bpcv|prevenar/,"Neumococo Conjugada VCN 20"],
- [/mening|\bamc\b|acwy|menactra|nimenrix/,"Meningocócica Tetravalente Conjugada"],[/antigripal|\bgripe\b|influenza/,"Antigripal"],[/varicela|\bavc\b/,"Varicela"],
- [/triple bacteriana acelular|dtpa|\bdpta\b|acelular/,"Triple Bacteriana Acelular"],[/triple bacteriana celular|\bdpt\b|celular/,"Triple Bacteriana Celular"],[/doble bacteriana|doble adulto|\bdt\b|\bdoble\b|toxoide/,"Doble Bacteriana"],
- [/\bvph\b|\bhpv\b|papiloma/,"VPH Nonavalente"],[/sincicial|\bvsr\b/,"Virus Sincicial Respiratorio"],[/fiebre amarilla|\bfa\b/,"Fiebre Amarilla"],[/dengue|qdenga/,"Tetravalente contra el Dengue"],
- [/antirrab|rabia|\batr\b/,"Antirrábica"],[/covid|pfizer|comirnaty|moderna|sinopharm|astrazeneca|sputnik/,"COVID-19"]];
-function vacunaDeLinea(n){ for(const [re,g] of ALIAS_VAC) if(re.test(n)) return g; return ""; }
+// Tabla de equivalencias de siglas y nombres (historia clínica, SISA, carnet). Se lee en este orden y cada pedazo reconocido se "consume".
+// [patrón, vacuna de la app (null = existe pero la app no la tiene), familia, candidatas si es genérica, etiqueta, aviso suave]
+const V_TV="Triple Viral",V_DV="Doble Viral",V_HB="Hepatitis B",V_HA="Hepatitis A",V_Q="Quintuple",V_N13="Neumococo Conjugada VCN 13",V_N20="Neumococo Conjugada VCN 20",V_N23="Neumococo Polisacárida 23",V_TBC="Triple Bacteriana Celular",V_TBA="Triple Bacteriana Acelular",V_DB="Doble Bacteriana",V_MEN="Meningocócica Tetravalente Conjugada",V_SALK="IPV SALK",V_SABIN="Sabín (OPV)";
+const SIGLAS_VAC=[
+ [/sextuple|hexavalente|\bhexa\b|dtpa ?-? ?(?:ipv|vpi) ?-? ?hib ?-? ?hb/g,null,"hexa",0,"Sextuple / Hexavalente"],
+ [/quintuple|penta ?valente|\bpenta\b|\bpen\b|dtp ?-? ?hib ?-? ?hb|dtp ?-? ?hb ?-? ?hib|cuadruple/g,V_Q,"quin"],
+ [/\b(?:vc ?n? ?-? ?13|pcv ?-? ?13|vpc ?-? ?13|prevenar ?-? ?13)\b|neumoc\w*[^|]{0,30}\b13\b/g,V_N13,"neumo"],
+ [/\b(?:vc ?n? ?-? ?20|pcv ?-? ?20|vpc ?-? ?20|prevenar ?-? ?20)\b|apexxnar|neumoc\w*[^|]{0,30}\b20\b/g,V_N20,"neumo"],
+ [/\b(?:vc ?n? ?-? ?15|pcv ?-? ?15|vpc ?-? ?15)\b|vaxneuvance|neumoc\w*[^|]{0,30}\b15\b/g,null,"neumo",0,"Neumococo conjugada 15 (VCN 15)"],
+ [/\b(?:np ?-? ?23|vpn ?-? ?23|ppsv ?-? ?23|vnp ?-? ?23|vpp ?-? ?23)\b|polisac\w*|neumoc\w*[^|]{0,30}\b23\b/g,V_N23,"neumo"],
+ [/neumoc\w*|\bneumo\b|prevenar|\bvc ?n\b|\bpcv\b|\bvpc\b|\bvc\b/g,undefined,"neumo",[V_N13,V_N20],"Neumocócica (no dice si 13 o 20)"],
+ [/mening\w*[^|]{0,15}\bb\b|\bmen ?b\b|\bmenb\b|bexsero|trumenba|4cmenb/g,null,"men",0,"Meningococo B"],
+ [/acwy|menactra|nimenrix|menveo|\bamc\b|\bmcv ?4\b|menacwy|mening\w*[^|]{0,20}tetravalente/g,V_MEN,"men"],
+ [/mening\w*/g,V_MEN,"men",0,"Meningocócica","dice «meningocócica» sin aclarar ACWY o B: la tomé como tetravalente (ACWY)"],
+ [/triple bacteriana acelular|\bdtpa\b|\bdpta\b|\btdpa\b|\bdtap\b|acelular/g,V_TBA,"tb"],
+ [/triple bacteriana celular|\b(?:dpt|dtp|dtpw|dtwp|dpw)\b/g,V_TBC,"tb"],
+ [/triple bacteriana|triple bact\b/g,undefined,"tb",[V_TBC,V_TBA],"Triple bacteriana (no dice celular o acelular)"],
+ [/doble bacteriana|\bdt\b|\btd\b|\bdta\b|doble adulto|toxoide|difteria[^|]{0,8}tetan\w*/g,V_DB,"db"],
+ [/triple viral|\bsrp\b|\bmmr\b|sarampion[^|]{0,18}paperas/g,V_TV,"viral"],
+ [/doble viral|\bsr\b|sarampion[^|]{0,18}rubeola/g,V_DV,"viral"],
+ [/sarampion|rubeola|paperas/g,undefined,"viral",[V_TV,V_DV],"Sarampión/rubéola (no dice si triple o doble viral)"],
+ [/hepatitis ?b|\bhep ?b\b|\bhbv?\b|anti ?hep\w* ?b\b/g,V_HB,"hep"],
+ [/hepatitis ?a|\bhep ?a\b|\bhav?\b/g,V_HA,"hep"],
+ [/hepatitis|\bhep\b/g,undefined,"hep",[V_HB,V_HA],"Hepatitis (no dice A o B)"],
+ [/\bbcg\b|tuberculosis/g,"BCG","bcg"],
+ [/salk|\bipv\b|\bvip\b|\bvpi\b/g,V_SALK,"polio"],
+ [/sabin|bopv|\bopv\b|\bvop\b/g,V_SABIN,"polio"],
+ [/polio\w*|antipolio\w*/g,undefined,"polio",[V_SALK,V_SABIN],"Polio (no dice Salk o Sabín)"],
+ [/rotavirus|\brota\b|rotv/g,"Rotavirus Monovalente","rota"],
+ [/\bvph\b|\bhpv\b|papiloma|gardasil/g,"VPH Nonavalente","vph"],
+ [/sincicial|\bvsr\b|abrysvo|arexvy/g,"Virus Sincicial Respiratorio","vsr"],
+ [/fiebre amarilla|\bfa\b|amarilla/g,"Fiebre Amarilla","fa"],
+ [/dengue|qdenga/g,"Tetravalente contra el Dengue","dengue"],
+ [/antirrab\w*|rabia|\batr\b/g,"Antirrábica","rabia"],
+ [/antigripal|\bgripe\b|influenza|\batg\b/g,"Antigripal","gripe"],
+ [/varicela|\bavc\b/g,"Varicela","varic"],
+ [/covid|pfizer|comirnaty|moderna|sinopharm|astrazeneca|sputnik/g,"COVID-19","covid"]];
+function vacHits(n){ let t=" "+String(n||"")+" "; const hits=[]; for(const [re,vac,fam,cands,lab,soft] of SIGLAS_VAC){ t=t.replace(re,s=>{ hits.push({vac,fam,cands:cands||null,gen:vac===undefined,lab:lab||vac,soft:soft||"",txt:s.trim()}); return " "; }); } return hits; }
+// Resuelve: una sigla exacta o una descripción manda; la genérica solo se usa si no hay nada más específico de la misma vacuna; si hay dudas, queda vacío y se pregunta.
+function vacResolver(n){ const hits=vacHits(n); if(!hits.length) return {estado:"nada",vac:"",cands:[],hits,nota:""};
+  const fams={}; hits.forEach(h=>{ (fams[h.fam]=fams[h.fam]||[]).push(h); }); const fin=[];
+  for(const f in fams){ const H=fams[f], esp=H.filter(h=>!h.gen);
+    if(esp.length){ const vs=[...new Set(esp.map(h=>h.vac))]; if(vs.length===1) fin.push({vac:vs[0],lab:esp[0].lab,soft:esp[0].soft}); else vs.forEach(v=>fin.push({vac:v,lab:esp.find(h=>h.vac===v).lab,conf:true})); }
+    else { const c=[...new Set(H.flatMap(h=>h.cands))]; fin.push({gen:true,cands:c,lab:H[0].lab}); } }
+  if(fin.length===1&&!fin[0].gen&&!fin[0].conf){ const f=fin[0]; return f.vac?{estado:"ok",vac:f.vac,cands:[f.vac],hits,nota:f.soft}:{estado:"sinapp",vac:"",cands:[],hits,nota:"«"+f.lab+"» no está en la lista de la app: elegí otra o dejala sin vacuna (anotala en OTRAS del carnet)"}; }
+  const c=[...new Set(fin.flatMap(f=>f.gen?f.cands:(f.vac?[f.vac]:[])))]; const nom=fin.map(f=>f.lab).filter(Boolean);
+  return {estado:"amb",vac:"",cands:c,hits,nota:"no estoy seguro de cuál es la vacuna"+(fin.length>1?" (el texto dice: "+nom.join(" y ")+")":"")+(c.length?": puede ser "+c.join(" o "):"")+". Elegila vos"}; }
+function vacunaDeLinea(n){ return vacResolver(n).vac; }
+function hayVacunaEn(n){ return vacHits(n).length>0; }
 function dosisDeLinea(n){ if(/neonat|recien nacido|\brn\b/.test(n)) return "Dosis Neonatal"; let m=/(?:^|\s)([1-4])\s*(?:°|º|ra|da|er|ro|a|ª)?\s*dosis|dosis\s*([1-4])\b|\b([1-4])\s*(?:°|º|ª)\s/.exec(n); const k=m&&(m[1]||m[2]||m[3]); if(k) return k+(["","ra","da","ra","ta"][+k])+" Dosis"; if(/refuerzo|\bref\b/.test(n)) return "Refuerzo"; if(/unica|\bu\b dosis|dosis unica/.test(n)) return "Unica Dosis"; if(/anual/.test(n)) return "Dosis Anual"; return ""; }
 function loteDeLinea(ln){ let m=/lote[\s:.nº°]*([A-Z0-9][A-Z0-9\-\/]{2,14})/i.exec(ln); if(m) return m[1].toUpperCase(); const toks=ln.replace(/\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/g," ").split(/[\s|;,]+/);
-  const c=toks.find(t=>/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\-\/]{4,14}$/.test(t)&&!/^(vcn|hb|dt|dtpa|ipv|bcg|hpv|vph|covid|np|pcv)\d*$/i.test(t)); return c?c.toUpperCase():""; }
-function vacunadorDeLinea(ln){ if(ln.includes("|")){ const c=ln.split("|").map(x=>x.trim()).find(sg=>/^[A-Za-zÁÉÍÓÚÑáéíóúñ.' ]{4,40}$/.test(sg)&&!vacunaDeLinea(norm(sg))&&!/dosis|refuerzo|unica|anual|lote/i.test(sg)); if(c) return c; } let m=/(?:aplic[oó]|aplicad[ao] por|vacunador[a]?|vacun[oó]|responsable|enfermer[oa]|profesional|agente)\s*[:.\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ.,' ]{3,40})\s*(?:\||$)/i.exec(ln); if(m){ const v=m[1].replace(/\d.*$/,"").trim(); if(v.length>=3) return v; }
+  const c=toks.find(t=>/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\-\/]{4,14}$/.test(t)&&!/^(vcn|vc|vpc|hb|ha|dt|dtp|dtpa|dpt|ipv|bcg|hpv|vph|covid|np|pcv|srp|sr|amc|pen|vpn)\d*$/i.test(t)); return c?c.toUpperCase():""; }
+function vacunadorDeLinea(ln){ if(ln.includes("|")){ const c=ln.split("|").map(x=>x.trim()).find(sg=>/^[A-Za-zÁÉÍÓÚÑáéíóúñ.' ]{4,40}$/.test(sg)&&!hayVacunaEn(norm(sg))&&!/dosis|refuerzo|unica|anual|lote/i.test(sg)); if(c) return c; } let m=/(?:aplic[oó]|aplicad[ao] por|vacunador[a]?|vacun[oó]|responsable|enfermer[oa]|profesional|agente)\s*[:.\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ.,' ]{3,40})\s*(?:\||$)/i.exec(ln); if(m){ const v=m[1].replace(/\d.*$/,"").trim(); if(v.length>=3) return v; }
   const lm=/lote[\s:.nº°]*[A-Z0-9][A-Z0-9\-\/]{2,14}/i.exec(ln); let resto=lm?ln.slice(lm.index+lm[0].length):ln.replace(/^.*\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/,""); resto=resto.replace(/^[\s|;,:\-]+/,"").replace(/\d.*$/,"").trim();
-  if(/^[A-Za-zÁÉÍÓÚÑáéíóúñ.' ]{4,40}$/.test(resto)&&resto.split(" ").length<=5&&!vacunaDeLinea(norm(resto))&&!/dosis|refuerzo|unica|lote/i.test(resto)) return resto; return ""; }
-function parseVacunasTexto(texto){ const L=String(texto).split(/\r?\n/).map(x=>x.replace(/\s+/g," ").trim()).filter(Boolean); const out=[], sueltas=[]; let ult="",ultN=-99;
-  L.forEach((ln,i)=>{ const n=norm(ln); const g=vacunaDeLinea(n); if(g){ ult=g; ultN=i; }
-    const fechas=[...ln.matchAll(/\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/g)].map(m=>({t:m[0],f:fechaTextoALibre(m[0])})).filter(x=>x.f);
+  if(/^[A-Za-zÁÉÍÓÚÑáéíóúñ.' ]{4,40}$/.test(resto)&&resto.split(" ").length<=5&&!hayVacunaEn(norm(resto))&&!/dosis|refuerzo|unica|lote/i.test(resto)) return resto; return ""; }
+function parseVacunasTexto(texto){ const L=String(texto).split(/\r?\n/).map(x=>x.replace(/\s+/g," ").trim()).filter(Boolean); const out=[], sueltas=[]; let ult=null,ultN=-99; const reF=/\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/;
+  L.forEach((ln,i)=>{ const n=norm(ln); let r=vacResolver(n); const fechas=[...ln.matchAll(/\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/g)].map(m=>({t:m[0],f:fechaTextoALibre(m[0])})).filter(x=>x.f);
+    if(fechas.length&&r.estado!=="ok"){ // la sigla y la descripción pueden venir en filas de arriba (tabla partida): se suman
+      let t=n; for(let k=i-1;k>=Math.max(0,i-2);k--){ if(reF.test(L[k])||/[:]\s*$/.test(L[k])) break; t=norm(L[k])+" | "+t; } if(t!==n){ const r2=vacResolver(t); if(r2.estado!=="nada") r=r2; } }
+    const g=r.estado!=="nada"; if(g){ ult=r; ultN=i; }
     const ok=fechas.filter(x=>x.f<=iso(hoy)); if(!fechas.length){ if(g&&!/[:]\s*$/.test(ln)) sueltas.push(ln); return; }
-    const vac=g||(i-ultN<=8?ult:""); if(!vac){ if(!/nacimiento|emision|vence|vto|fecha de (nac|emi)|tramite/.test(n)) sueltas.push(ln); return; }
-    if(/nacimiento|f\. ?nac/.test(n)&&!g) return; const f=(ok[0]||fechas[0]); const duda=[]; if(!ok.length) duda.push("la fecha es futura"); if(!g) duda.push("la vacuna la tomé de la fila de arriba"); const d=dosisDeLinea(n); if(!d) duda.push("no dice la dosis");
-    out.push({vac,dosis:d,fecha:f.f,lote:loteDeLinea(ln),vacunador:vacunadorDeLinea(ln),duda,raw:ln}); });
+    const rr=g?r:(i-ultN<=8?ult:null); if(!rr){ if(!/nacimiento|emision|vence|vto|fecha de (nac|emi)|tramite/.test(n)) sueltas.push(ln); return; }
+    if(/nacimiento|f\. ?nac/.test(n)&&!g) return; const f=(ok[0]||fechas[0]); const duda=[]; if(!ok.length) duda.push("la fecha es futura"); if(!g) duda.push("la vacuna la tomé de la fila de arriba"); if(rr.nota) duda.push(rr.nota); const d=dosisDeLinea(n); if(!d) duda.push("no dice la dosis");
+    out.push({vac:rr.vac,cands:rr.cands,dosis:d,fecha:f.f,lote:loteDeLinea(ln),vacunador:vacunadorDeLinea(ln),duda,raw:ln}); });
   return {vacunas:out,sueltas}; }
 // Word (.docx): se abre el zip y se toma el texto de word/document.xml
 async function textoDeDocx(file){ const buf=new Uint8Array(await file.arrayBuffer()); const dv=new DataView(buf.buffer); let p=0, xml=null;
@@ -1760,7 +1803,7 @@ const CLAVES_XLS={apellido:["apellido","apellidos"],nombre:["nombre","nombres"],
 function personasDeFilas(filas,cab,dudas){ const mapa={}; Object.entries(CLAVES_XLS).forEach(([k,al])=>{ const h=cab.find(c=>al.includes(norm(c))); if(h) mapa[k]=h; }); const grupos=new Map();
   filas.forEach(f=>{ const g=k=>mapa[k]?String(f[mapa[k]]==null?"":f[mapa[k]]).trim():""; let ap=g("apellido"), no=g("nombre"); const an=g("an"); if(an&&!ap){ if(an.includes(",")){ [ap,no]=an.split(",").map(x=>x.trim()); } else { const p=an.split(" "); ap=p[0]; no=p.slice(1).join(" "); } }
     const dni=g("dni").replace(/\.0+$/,"").replace(/\D/g,""); const clave=dni||(ap+"|"+no); if(!clave||clave==="|") return; if(!grupos.has(clave)) grupos.set(clave,{campos:{apellido:ap.toUpperCase(),nombre:no,dni,nac:mapa.nac?fechaDesde(f[mapa.nac]):"",sexo:/^[MFX]/i.test(g("sexo"))?g("sexo")[0].toUpperCase():"",domicilio:g("domicilio"),telefono:g("telefono")},dudas:new Set(),vacunas:[],fuentes:[]});
-    const P=grupos.get(clave); const vt=g("vac"), fe=mapa.fecha?fechaDesde(f[mapa.fecha]):""; if(vt&&fe){ const gr=vacunaDeLinea(norm(vt)); const duda=[]; if(!gr) duda.push("no reconocí la vacuna «"+vt+"»"); const d=dosisDeLinea(norm(g("dosis")))||g("dosis"); if(!d) duda.push("no dice la dosis"); P.vacunas.push({vac:gr,dosis:d,fecha:fe,lote:g("lote").toUpperCase(),vacunador:g("vacunador"),duda,raw:vt}); } });
+    const P=grupos.get(clave); const vt=g("vac"), fe=mapa.fecha?fechaDesde(f[mapa.fecha]):""; if(vt&&fe){ const rv=vacResolver(norm(vt)), gr=rv.vac; const duda=[]; if(!gr) duda.push(rv.nota||("no reconocí la vacuna «"+vt+"»")); else if(rv.nota) duda.push(rv.nota); const d=dosisDeLinea(norm(g("dosis")))||g("dosis"); if(!d) duda.push("no dice la dosis"); P.vacunas.push({vac:gr,dosis:d,fecha:fe,lote:g("lote").toUpperCase(),vacunador:g("vacunador"),duda,raw:vt}); } });
   return [...grupos.values()]; }
 async function leerArchivoCarga(file,prog){ const nom=file.name||"archivo"; const ext=(nom.split(".").pop()||"").toLowerCase(); const res={personas:[],avisos:[],fuente:nom,esImagen:/^image\//.test(file.type)||/^(jpe?g|png|webp|heic)$/.test(ext)};
   const desdeTexto=(t,sure)=>{ const c=parseCamposTexto(t); const v=parseVacunasTexto(t); const dni=/documento|republica argentina|mercosur|tramite|nacionalidad/.test(norm(t)); res.personas.push({campos:c.campos,dudas:c.dudas,vacunas:dni&&!v.vacunas.length?[]:v.vacunas,sueltas:v.sueltas,fuentes:[nom]}); return {c,v}; };
