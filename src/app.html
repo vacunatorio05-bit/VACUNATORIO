@@ -348,6 +348,15 @@ const CAL = [
   {id:"emb_gripe", vac:"Antigripal", dosis:"En el embarazo (cualquier trimestre)", cond:"embarazada", familia:"gripe", edad:0, vigenciaDias:300, grupo:"Embarazo"},
   {id:"emb_vsr", vac:"VSR (virus sincicial)", dosis:"Sem. 32 a 36,6", cond:"embarazada", edad:0, vigenciaDias:300, grupo:"Embarazo"},
   {id:"puerp_gripe", vac:"Antigripal", dosis:"Puerperio (hasta 10 días, si no la recibió embarazada)", cond:"puerpera", familia:"gripe", cubiertoPor:["emb_gripe"], edad:0, vigenciaDias:300, grupo:"Puerperio"},
+  {id:"hb_ps1", vac:"Hepatitis B", dosis:"1ª (personal de salud, esquema 0-1-6 meses)", cond:"personal_salud", edad:192, cubiertoPor:["hb_adol"], grupo:"Personal de salud"},
+  {id:"hb_ps2", vac:"Hepatitis B", dosis:"2ª (personal de salud, 1 mes después)", cond:"personal_salud", edad:192, tras:[["hb_ps1",28],["hb_adol",28]], requiereAlguna:["hb_ps1","hb_adol"], cubiertoPor:["hb2"], grupo:"Personal de salud"},
+  {id:"hb_ps3", vac:"Hepatitis B", dosis:"3ª (personal de salud, 6 meses después de la 1ª)", cond:"personal_salud", edad:192, tras:[["hb_ps2",56],["hb2",56],["hb_ps1",182],["hb_adol",182]], requiereAlguna:["hb_ps2","hb2"], cubiertoPor:["hb3"], grupo:"Personal de salud"},
+  {id:"tv_ps1", vac:"Triple viral (SRP)", dosis:"1ª (personal de salud, 2 dosis en total)", cond:"personal_salud", edad:192, cubiertoPor:["tv1"], vivo:true, grupo:"Personal de salud"},
+  {id:"tv_ps2", vac:"Triple viral (SRP)", dosis:"2ª (personal de salud, 1 mes después)", cond:"personal_salud", edad:192, tras:[["tv_ps1",28],["tv1",28]], requiereAlguna:["tv_ps1","tv1"], cubiertoPor:["tv2"], vivo:true, grupo:"Personal de salud"},
+  {id:"dv_ps1", vac:"Doble viral (SR)", dosis:"1ª (personal de salud, si no hay triple viral)", cond:"personal_salud", edad:192, cubiertoPor:["tv1","tv_ps1","x_sr1"], omitir:()=>true, vivo:true, grupo:"Personal de salud"},
+  {id:"dv_ps2", vac:"Doble viral (SR)", dosis:"2ª (personal de salud, 1 mes después)", cond:"personal_salud", edad:192, tras:[["dv_ps1",28],["tv1",28],["tv_ps1",28],["x_sr1",28]], requiereAlguna:["dv_ps1","tv1","tv_ps1","x_sr1"], cubiertoPor:["tv2","tv_ps2","x_sr2"], omitir:()=>true, vivo:true, grupo:"Personal de salud"},
+  {id:"puerp_tv", vac:"Triple viral (SRP)", dosis:"Única en puerperio o post aborto (si no tiene 2 dosis SR)", cond:"puerpera", edad:0, cubiertoPor:["tv2","tv_ps2","x_sr2"], vivo:true, grupo:"Puerperio"},
+  {id:"puerp_dv", vac:"Doble viral (SR)", dosis:"Única en puerperio o post aborto (si no hay triple viral)", cond:"puerpera", edad:0, cubiertoPor:["tv2","tv_ps2","x_sr2","puerp_tv"], omitir:()=>true, vivo:true, grupo:"Puerperio"},
 ];
 
 /* ===================== CONDICIONES DEL PACIENTE ===================== */
@@ -1371,7 +1380,7 @@ const regla=id=>CAL.find(c=>c.id===id)||OTRAS.find(c=>c.id===id);
 // [nombre en SISA, vacuna en Acuario, sigla en Acuario, [[dosis como en SISA, códigos de la app]], otros nombres para importar]
 const GRILLA=[
   ["BCG","Tuberculosis","BCG",[["Unica Dosis","bcg"]]],
-  ["Hepatitis B","Anti Hepatitis B","Hepatitis B",[["Dosis Neonatal","hb_rn"],["1er Dosis","hb_adol"],["2da Dosis","hb2"],["3er Dosis","hb3"]]],
+  ["Hepatitis B","Anti Hepatitis B","Hepatitis B",[["Dosis Neonatal","hb_rn"],["1er Dosis","hb_adol hb_ps1"],["2da Dosis","hb2 hb_ps2"],["3er Dosis","hb3 hb_ps3"]]],
   ["Quintuple","Pentavalente","PEN",[["1er Dosis","quin1"],["2da Dosis","quin2"],["3er Dosis","quin3"],["Refuerzo","quin_ref"]],["cuadruple","pentavalente","quintuple"]],
   ["IPV SALK","Salk (Antipoliomielitica)","IPV",[["1er Dosis","ipv1"],["2da Dosis","ipv2"],["3er Dosis","ipv3"],["Refuerzo","ipv_esc"]],["salk"]],
   ["Rotavirus Monovalente","Rotavirus","ROTV",[["1er Dosis","rota1"],["2da Dosis","rota2"]],["rotavirus"]],
@@ -1379,7 +1388,7 @@ const GRILLA=[
   ["Meningocócica Tetravalente Conjugada","Antimeningococica","AMC",[["1er Dosis","mening1"],["2da Dosis","mening2"],["Refuerzo","mening_ref"],["Unica Dosis","mening11"]],["meningococ"]],
   ["Antigripal","Antigripal","ATG",[["Dosis Anual","gripe_ninos gripe_65 gripe_riesgo gripe_ps gripe_estr emb_gripe puerp_gripe"],["2da Dosis","gripe_primo"]],["antigripal","gripe"]],
   ["Hepatitis A","Anti Hepatitis A","Hepatitis A",[["Unica Dosis","hepa hepa_r1"],["2da Dosis","hepa_r2"]]],
-  ["Triple Viral","Sarampión, Paperas y Rubéola","Triple Viral",[["1ra Dosis","tv1"],["2da Dosis","tv2"]],["srp"]],
+  ["Triple Viral","Sarampión, Paperas y Rubéola","Triple Viral",[["1ra Dosis","tv1 tv_ps1"],["2da Dosis","tv2 tv_ps2"],["Unica Dosis","puerp_tv"]],["srp"]],
   ["Varicela","Anti Varicela","AVC",[["1ra Dosis","varic1"],["2da Dosis","varic2"]],["varicela"]],
   ["Triple Bacteriana Celular","Difteria, Pertussis, Tétanos","DPT",[["Refuerzo","dtp_esc"]]],
   ["Triple Bacteriana Acelular","Difteria, Pertussis, Tétanos acelular","DPTace",[["Refuerzo","dtpa11 emb_dtpa dtpa_rec dtpa_ps dtpa_conv"]],["dtpa"]],
@@ -1388,7 +1397,7 @@ const GRILLA=[
   ["Virus Sincicial Respiratorio","VIRUS SINCICIAL RESPIRATORIO","VIRUS SINCICIAL RESPIRATORIO",[["Unica Dosis","emb_vsr"]],["sincicial","vsr"]],
   ["Fiebre Amarilla","Fiebre Amarilla","FA",[["1ra Dosis","fa1"],["Refuerzo","fa_ref"]],["amarilla"]],
   ["Tetravalente contra el Dengue","TETRAVALENTE CONTRA EL DENGUE","DENGUE",[["1ra Dosis","dengue"],["2da Dosis","dengue2"]],["dengue"]],
-  ["Doble Viral","Sarampión y Rubéola","Doble Viral",[["1ra Dosis","x_sr1"],["2da Dosis","x_sr2"]]],
+  ["Doble Viral","Sarampión y Rubéola","Doble Viral",[["1ra Dosis","x_sr1 dv_ps1"],["2da Dosis","x_sr2 dv_ps2"],["Unica Dosis","puerp_dv"]]],
   ["Neumococo Conjugada VCN 13","Antineumocócica","VCN-13",[["Dosis","x_vcn13"]],["vcn 13","vcn13"]],
   ["Neumococo Polisacárida 23","Neumococcica Polisacarida 23","NP23",[["Dosis","x_vpn23"]],["polisacarida","np23"]],
   ["Antirrábica","Antirrábica","ATR",[["Dosis","x_rab"]],["rabica"]],
@@ -1427,8 +1436,8 @@ function ayudaCond(p,tipo,que){ if(!p) return ""; const nm=r=>(GR_DE[r.id]?GR_DE
   try{ if(tipo==="calendario"){ const r=resumen(p); if(que==="Atrasado"){ const l=r.atrasada||[]; return l.length?"Atrasadas: "+l.map(nm).join(", ")+".":"No tiene vacunas atrasadas."; } const l=r.pendiente||[]; return l.length?"Le tocan por edad: "+l.map(nm).join(", ")+".":"Por edad no tiene ninguna pendiente."; }
     if(tipo==="riesgo"){ const l=CAL.filter(r=>/riesgo|inmuno/.test(r.cond||"")); return "Con factor de riesgo corresponden: "+[...new Set(l.map(nm))].slice(0,10).join(", ")+"."; }
     if(tipo==="embarazada") return "Embarazo: antigripal (cualquier trimestre), dTpa (desde la semana 20), VSR (semana 32 a 36), hepatitis B.";
-    if(tipo==="puerpera") return "Puerperio: antigripal hasta 10 días después del parto, si no la recibió embarazada.";
-    if(tipo==="personal") return "Personal de salud: hepatitis B, triple viral, antigripal anual, dTpa."; }catch(e){}
+    if(tipo==="puerpera") return "Puerperio: antigripal hasta 10 días después del parto (si no la recibió embarazada) y una dosis de triple viral o doble viral antes del alta, si no tiene 2 dosis contra sarampión y rubéola.";
+    if(tipo==="personal") return "Personal de salud: hepatitis B (3 dosis), triple viral o doble viral (2 dosis contra sarampión y rubéola), antigripal anual, dTpa."; }catch(e){}
   return ""; }
 function selCondicion(id,valor,paciente){ valor=condNueva(valor); let raw=null;
   const tsel=el("select",{"aria-label":"Condición: tipo"},COND_TIPOS.map(([k,t])=>el("option",{value:k},t)));
