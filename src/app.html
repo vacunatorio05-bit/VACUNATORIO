@@ -1166,6 +1166,10 @@ function dibujarCarnetPlantilla(doc,p,img1,img2,C){
   let oi=0; [[C.otrasL,C.xL],[C.otrasR,C.xR]].forEach(([rows,xs])=>rows.forEach(([a,b])=>{ const r=otras[oi++]; if(!r) return;
     doc.setFont("helvetica","normal"); doc.setFontSize(5); doc.setTextColor(0); const t=doc.splitTextToSize((r.vac+" "+(r.dosis||"")).trim(),xs.dosis[1]-xs.dosis[0]-3).slice(0,3); doc.text(t,xs.dosis[0]+1.5,(a+b)/2-(t.length-1)*2.4+1.4);
     celda(r,xs,a,b,false); }));
+  // Si hay más vacunas «otras» que renglones en el carnet, siguen en una hoja de continuación: nada aplicado queda sin salir
+  const resto=otras.slice(oi); if(resto.length){ const L=[...resto]; while(L.length){ doc.addPage(); doc.setFillColor(255); doc.rect(0,0,W,H,"F"); mark(); doc.setTextColor(0); doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.text("Carnet Unificado de Vacunación — Otras vacunas (continuación)",20,24); doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.text(nom+(p.dni?" · DNI "+p.dni:""),20,36);
+    const cols=[20,230,300,370,440,604]; const hs=["Vacuna","Dosis","Fecha","Lote","Firma y sello"]; doc.setDrawColor(60); doc.setFont("helvetica","bold"); doc.setFontSize(8); hs.forEach((t,i)=>{ doc.text(t,(cols[i]+cols[i+1])/2,50,{align:"center"}); }); let y=56;
+    L.splice(0,14).forEach(r=>{ doc.rect(cols[0],y,cols[5]-cols[0],22); cols.slice(1,5).forEach(x=>doc.line(x,y,x,y+22)); doc.setFont("helvetica","normal"); doc.setFontSize(7); const t=doc.splitTextToSize(r.vac||"",200).slice(0,2); doc.text(t,cols[0]+3,y+9); doc.setFontSize(6.5); doc.text(doc.splitTextToSize(r.dosis||"",64).slice(0,2),(cols[1]+cols[2])/2,y+9,{align:"center"}); doc.text(fmt(r.h.fecha),(cols[2]+cols[3])/2,y+13,{align:"center"}); doc.text(String(r.h.lote||""),(cols[3]+cols[4])/2,y+13,{align:"center"}); sello(cols[4],y,cols[5]-cols[4],22); y+=22; }); } }
 }
 
 /* ===================== CONSTANCIA DE VISITA (PDF con logo) ===================== */
