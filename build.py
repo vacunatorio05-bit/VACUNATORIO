@@ -29,7 +29,7 @@ try{ if(sessionStorage.getItem("recienActualizada")){ sessionStorage.removeItem(
 </body></html>
 '''
 open('index.html','w').write(head+src+tail.replace('%s',VER,1))
-json.dump({"name":"Vacunatorio · CS N° 41 Tres Cerritos","short_name":"Vacunatorio","lang":"es-AR","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f3f6f5","theme_color":"#0a4fa8",
+json.dump({"name":"Vacunatorio · CS N° 41 Tres Cerritos","short_name":"Vacunatorio","lang":"es-AR","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f3f6f5","theme_color":"#005B9F",
  "id":"./","description":"Control de vacunas faltantes, registro de aplicaciones, escuelas y visitas domiciliarias.","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]},open('manifest.json','w'),ensure_ascii=False,indent=1)
 open('sw.js','w').write('''// Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
 const APP="vacunatorio-%s", TILES="mapa-tiles-v1", MAX_TILES=3000;

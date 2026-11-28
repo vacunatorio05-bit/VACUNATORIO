@@ -19,10 +19,10 @@
 <style>
 /* Layout: app de una columna para celular, encabezado fijo arriba y barra de pestañas abajo */
 :root{
-  --bg:#eef3fa; --surface:#ffffff; --ink:#0c1d33; --muted:#4a5d75; --line:#d3deec;
-  --accent:#0b5fc4; --accent-ink:#ffffff; --accent-soft:#dbe9fd; --accent2:#00a19a;
-  --hdr1:#0a4fa8; --hdr2:#0096a8;
-  --bad:#d1241a; --bad-soft:#ffe3e0; --warn:#b86200; --warn-soft:#fff0d6;
+  --bg:#F5F7FA; --surface:#ffffff; --ink:#1A1A1A; --muted:#5b6472; --line:#d9e0ea;
+  --accent:#005B9F; --accent-ink:#ffffff; --accent-soft:#dcebf7; --accent2:#0a7ab8; --gold:#F2C94C; --rojo-inst:#C1121F;
+  --hdr1:#005B9F; --hdr2:#0a6fb4;
+  --bad:#C1121F; --bad-soft:#ffe3e0; --warn:#b86200; --warn-soft:#fff0d6;
   --ok:#11873f; --ok-soft:#dcf5e5; --gray-soft:#edf1f7; --shadow:0 1px 2px rgba(12,29,51,.06),0 4px 14px rgba(12,29,51,.07);
   --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
@@ -116,7 +116,7 @@ details summary{cursor:pointer;font-weight:700}
 /* ===== Diseño v2: más color y contraste ===== */
 body{font-size:16.5px}
 body::before{background:var(--hdr1)}
-header{background:linear-gradient(120deg,var(--hdr1),var(--hdr2));color:#fff;box-shadow:0 2px 10px rgba(10,79,168,.25);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header{background:linear-gradient(120deg,var(--hdr1),var(--hdr2));color:#fff;border-bottom:3px solid var(--gold);box-shadow:0 2px 10px rgba(0,91,159,.25);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 header .htxt{flex:1;min-width:0}
 header h1{font-size:1.3rem}
 header p{opacity:.92}
@@ -502,6 +502,9 @@ let TAB="pendientes", filtro="", filtroPend="todos";
 function setTab(t){ TAB=t; document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current", b.dataset.tab===t?"true":"false")); render(); window.scrollTo(0,0); }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
 
+let ROL="admin"; const esAdmin=()=>ROL==="admin";
+function aplicarRol(){ if(ROL!=="invitado") return; document.querySelectorAll(".btn.danger").forEach(b=>b.remove()); }
+new MutationObserver(()=>aplicarRol()).observe(document.documentElement,{childList:true,subtree:true});
 function render(){
   const v=$("#view"); v.replaceChildren(); v.classList.remove("entra"); void v.offsetWidth; v.classList.add("entra");
   ({pendientes:vPendientes,pacientes:vPacientes,escuelas:vEscuelas,datos:vDatos,visitas:vVisitas,calendario:vCalendario})[TAB](v);
@@ -512,6 +515,16 @@ function avisoEjemplos(v){
   if(S.pacientes.some(p=>p.ejemplo)) v.append(el("div",{class:"note"},"Estos son pacientes de EJEMPLO para que veas cómo funciona. Cuando cargues los tuyos, borralos desde la pestaña Registro."));
 }
 
+// Semáforo: 🟥 atrasada · 🟨 le toca ahora · 🟩 al día
+function filaAtencion(p,r){
+  r=r||resumen(p); const sem=r.atrasada.length?"🟥":r.pendiente.length?"🟨":"🟩"; const falta=[...r.atrasada,...r.pendiente][0];
+  return el("div",{class:"row",style:"cursor:default;align-items:stretch;gap:10px"},
+    el("button",{class:"main",style:"all:unset;flex:1;cursor:pointer;min-height:48px",onclick:()=>abrirPaciente(p.id)},
+      el("div",{class:"name"},sem+" "+nombreCompleto(p)),
+      el("div",{class:"small muted"},[edadTexto(edadMeses(p.nac)),p.dni?"DNI "+p.dni:null].filter(Boolean).join(" · ")),
+      falta?el("div",{class:"small",style:"font-weight:700"},"Le falta: "+corto(falta)+(r.faltan>1?" y "+(r.faltan-1)+" más":"")):null),
+    el("button",{class:"btn sm",style:"min-height:48px;min-width:96px;align-self:center",onclick:()=>vacunarVarias(p)},"Registrar dosis"));
+}
 function filaPaciente(p, sub){
   const r=resumen(p);
   const cls=r.atrasada.length?"bad":r.pendiente.length?"warn":"ok";
@@ -592,7 +605,7 @@ function vPendientes(v){
   const as=alertasStock();
   if(as.vencidos||as.porvencer||as.poco) v.append(el("button",{class:"note",style:"border:0;text-align:left;cursor:pointer;background:var(--warn-soft);color:var(--warn);font:inherit",onclick:abrirStock},
     "Stock: "+[as.vencidos&&as.vencidos+" lotes vencidos con dosis",as.porvencer&&as.porvencer+" lotes vencen en 30 días",as.poco&&as.poco+" lotes con poco stock"].filter(Boolean).join(" · ")+". Tocá para ver."));
-  v.append(el("h2",{},"¿A quién le faltan vacunas?"));
+  v.append(el("h2",{},"Pacientes que necesitan atención hoy"));
   avisoEjemplos(v);
   v.append(el("div",{class:"stats"},
     el("div",{class:"stat bad"},el("b",{},atr),el("span",{},"con vacunas atrasadas")),
@@ -605,9 +618,9 @@ function vPendientes(v){
   let lista=res.filter(x=>okEdad(x.p) && (filtroPend==="pronto"? x.r.proxima.length : x.r.faltan));
   lista.sort((a,b)=>b.r.atrasada.length-a.r.atrasada.length||b.r.faltan-a.r.faltan||nombreCompleto(a.p).localeCompare(nombreCompleto(b.p)));
   if(!lista.length){ v.append(el("div",{class:"card"},el("p",{},S.pacientes.length?"Nadie en este grupo tiene vacunas pendientes.":"Todavía no hay pacientes. Cargalos en la pestaña Pacientes o importá un Excel."))); }
-  else v.append(el("div",{class:"list"},lista.map(x=>filaPaciente(x.p, x.p.domicilio))));
+  else { v.append(el("div",{class:"list"},lista.slice(0,60).map(x=>filaAtencion(x.p,x.r)))); if(lista.length>60) v.append(el("p",{class:"small muted"},"Se muestran los 60 más urgentes de "+lista.length+". El Excel trae todos.")); }
   if(lista.length) v.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost sm",onclick:()=>exportarPendientes(lista)},"Descargar esta lista en Excel")));
-  v.append(el("p",{class:"small muted"},"Rojo: atrasada (pasó más de un mes de la edad indicada). Amarillo: le toca ahora."));
+  v.append(el("p",{class:"small muted"},"🟥 atrasada (pasó más de un mes de la edad indicada) · 🟨 le toca ahora · 🟩 al día."));
 }
 
 /* ===================== PESTAÑA: PACIENTES ===================== */
@@ -699,6 +712,7 @@ function abrirPaciente(id){
   cuerpo.append(el("div",{class:"toolbar"},
     el("button",{class:"btn ghost",onclick:()=>editarPaciente(p.id)},"Editar datos"),
     el("button",{class:"btn ghost",onclick:()=>nuevaVisita(null,p)},"Registrar visita"),
+    el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>revisionPaciente(p)},"🔎 Revisar y cruzar datos"),
     el("button",{class:"btn ghost",onclick:()=>carnetPDF(p)},"📄 Certificado / carnet (compartir)"),
     p.telefono&&r.faltan? el("a",{class:"btn ghost",href:linkWhatsApp(p,r),target:"_blank",rel:"noopener"},"Avisar por WhatsApp"):null,
     p.lat!=null? el("a",{class:"btn ghost",href:"https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lng,target:"_blank",rel:"noopener"},"Cómo llegar"):null,
@@ -2039,12 +2053,13 @@ function datosPersonales(t){
   for(const p of S.pacientes){ for(const campo of [p.apellido,p.nombre]){ for(const w of toks(campo)){ if(palabras.has(w)&&!libres.has(w)) return "«"+w+"» coincide con un apellido o nombre cargado en la app"; } } }
   return ""; }
 function resumenCalendario(){ return CAL.filter(r=>!r.zona||true).map(r=>"- "+r.vac+" · "+r.dosis+" ("+(r.grupo||"")+")").join("\n"); }
-async function preguntarGemini(pregunta){
+async function preguntarGemini(pregunta,op={}){
   const c=gemConfig(); if(!c.key) throw new Error("Falta la clave: pegala en Registro → Consulta con IA (Gemini).");
   if(navigator.onLine===false) throw new Error("No hay internet. Probá con el bot sin internet.");
   const sistema="Sos un asistente de consultas de vacunación para el equipo de salud de un vacunatorio en Salta, Argentina. Respondé en español rioplatense, corto y claro, para un vacunador. Basate en el Calendario Nacional de Vacunación y el Manual de Vacunación de Salta 2025. Si no estás seguro, o si el tema depende de una circular 2026, decilo y recomendá confirmar en el manual. No des diagnósticos ni indicaciones para un paciente puntual. Calendario de la app, para que lo uses de referencia:\n"+resumenCalendario();
-  const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(c.modelo||GEM_MODELOS[0][0])+":generateContent",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
-    body:JSON.stringify({systemInstruction:{parts:[{text:sistema}]},contents:[{role:"user",parts:[{text:pregunta}]}],generationConfig:{temperature:0.2,maxOutputTokens:900}})});
+  const llamar=web=>fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(c.modelo||GEM_MODELOS[0][0])+":generateContent",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
+    body:JSON.stringify(Object.assign({systemInstruction:{parts:[{text:(op.sistema||sistema)+(web?"\nPodés buscar en la web fuentes oficiales (Ministerio de Salud de la Nación, Ministerio de Salud de Salta, circulares y alertas vigentes) para lo que no esté en el calendario. Citá la fuente y la fecha si la encontrás.":"")}]},contents:[{role:"user",parts:[{text:pregunta}]}],generationConfig:{temperature:0.2,maxOutputTokens:op.max||1200}},web?{tools:[{google_search:{}}]}:{}))});
+  let r=await llamar(true); if(r.status===400||r.status===404){ const r2=await llamar(false); if(r2.ok) r=r2; }
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ const m=(j.error&&j.error.message)||("Error "+r.status); throw new Error(r.status===400||r.status===403?"Gemini rechazó la clave o la consulta. Revisá la clave en Registro. ("+m.slice(0,120)+")":r.status===404?"Ese modelo ya no existe: elegí otro en Registro → Consulta con IA.":r.status===429?"Se acabó el cupo gratis por ahora. Probá más tarde.":m.slice(0,160)); }
   const t=(((j.candidates||[])[0]||{}).content||{}).parts; const txt=(t||[]).map(x=>x.text||"").join("").trim(); if(!txt) throw new Error("Gemini no devolvió respuesta. Probá con otra pregunta.");
@@ -2052,7 +2067,7 @@ async function preguntarGemini(pregunta){
 function abrirGemini(){
   const c=gemConfig();
   const cont=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
-  cont.append(el("div",{class:"note bad"},"⚠ Esta consulta sale por internet a Google (Gemini). NO escribas nombres, DNI ni datos de pacientes: la app lo bloquea si lo detecta. Es una ayuda para dudas generales y NO reemplaza el manual ni el criterio del equipo de salud."));
+  cont.append(el("div",{class:"note bad"},"⚠ Esta consulta sale por internet a Google (Gemini) y puede buscar en la web. NO escribas nombres, DNI ni datos de pacientes: la app lo bloquea si lo detecta. Es una ayuda para dudas generales y NO reemplaza el manual ni el criterio del equipo de salud."));
   if(!c.key){ cont.append(el("div",{class:"card"},el("p",{},"Todavía no cargaste la clave de Gemini."),el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Cargar la clave (te explico cómo)"))); abrirOverlay("Consulta con IA (Gemini)",cont); return; }
   const q=el("textarea",{id:"gem-q",rows:4,placeholder:"Ej.: ¿Cuál es el intervalo mínimo entre la 1ª y la 2ª dosis de hepatitis B en un adulto?",style:"width:100%;box-sizing:border-box"});
   const res=el("div",{class:"card",hidden:true,style:"white-space:pre-wrap"}); const aviso=el("div",{class:"note bad",hidden:true});
@@ -2079,6 +2094,66 @@ function cardGemini(){
       c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:abrirGemini},"Probar"):null));
 }
 
+
+/* ===================== REVISAR PACIENTE: cruce LOCAL de vacunas y datos faltantes (+ consulta anónima opcional a Gemini) ===================== */
+function datosFaltantes(p){ const f=[]; const v=(k,t)=>{ if(!String(p[k]||"").trim()) f.push(t); };
+  v("apellido","Apellido"); v("nombre","Nombre"); v("dni","Documento"); v("nac","Fecha de nacimiento"); v("sexo","Sexo"); v("domicilio","Domicilio"); v("telefono","Teléfono");
+  if(!p.tipoPac) f.push("Tipo de paciente"); if(["alumno","docente","personal"].includes(p.tipoPac)&&!p.escuela) f.push("Escuela");
+  if(p.lat==null&&!p.docente) f.push("Ubicación en el mapa (visita)");
+  if(p.escuela&&!p.docente&&!(p.autorizacion||{}).estado) f.push("Autorización de madre, padre o tutor");
+  if(p.escuela&&!p.verif) f.push("Cómo se verificó el carnet");
+  (p.historial||[]).forEach(h=>{ const r=regla(h.dosis); const n=r?corto(r):h.dosis; if(!h.lote) f.push("Lote de "+n+" ("+fmt(h.fecha)+")"); if(!h.condicion) f.push("Condición de "+n+" ("+fmt(h.fecha)+")"); });
+  const nS=(p.historial||[]).filter(h=>!h.pasado).length, nA=(p.historial||[]).filter(h=>!h.pasadoAcu).length; if(nS) f.push(nS+" aplicación(es) sin cargar en SISA"); if(nA) f.push(nA+" aplicación(es) sin cargar en Acuario");
+  return f; }
+// Resumen SIN identificar: no lleva nombre, DNI, domicilio, teléfono ni fechas exactas.
+function resumenAnonimo(p){ const m=edadMeses(p.nac); const ed=m<24?m+" meses":Math.floor(m/12)+" años";
+  const rs=(p.riesgos||[]).map(k=>(RIESGOS.find(x=>x[0]===k)||[k,k])[1]).concat((p.grupos||[]).map(k=>(GRUPOS_P.find(x=>x[0]===k)||[k,k])[1])); if(p.embarazada) rs.push("embarazada"); if(p.riesgoOtro) rs.push("otra condición de riesgo");
+  const ap=(p.historial||[]).slice().sort((a,b)=>a.fecha<b.fecha?-1:1).map(h=>{ const r=regla(h.dosis); const em=edadMeses(p.nac,parseISO(h.fecha)); return "- "+(r?r.vac+" "+r.dosis:h.dosis)+": aplicada a los "+(em<24?em+" meses":Math.floor(em/12)+" años")+" de edad"; });
+  return "Fecha actual: "+hoy.toLocaleDateString("es-AR",{month:"long",year:"numeric"})+". Persona de "+ed+(p.sexo?", sexo "+p.sexo:"")+", en Salta, Argentina.\nCondiciones de riesgo: "+(rs.join("; ")||"ninguna informada")+".\nVacunas aplicadas:\n"+(ap.join("\n")||"- ninguna registrada"); }
+function revisionPaciente(p){
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"}); const r=resumen(p); const df=datosFaltantes(p);
+  const li=(arr,cls)=>arr.map(x=>el("li",{},el("span",{class:"chip "+cls},nombreSisa(x,p)+" · "+dosisSisa(x))));
+  c.append(el("p",{},el("b",{},nombreCompleto(p))," · "+(p.nac?edadTexto(edadMeses(p.nac)):"sin fecha de nacimiento")),
+    el("div",{class:"note"},"Esta revisión se hace en tu celular, con los datos completos. No sale nada por internet."),
+    el("div",{class:"card"},el("h3",{},"Vacunas"),!p.nac?el("p",{},"Falta la fecha de nacimiento para calcular."):null,
+      r.atrasada.length?el("div",{},el("b",{},"Atrasadas:"),el("ul",{},li(r.atrasada,"bad"))):null,
+      r.pendiente.length?el("div",{},el("b",{},"Le tocan ahora:"),el("ul",{},li(r.pendiente,"warn"))):null,
+      r.proxima.length?el("div",{},el("b",{},"Próximas:"),el("ul",{},li(r.proxima.slice(0,5),""))):null,
+      (p.nac&&!r.atrasada.length&&!r.pendiente.length)?el("p",{class:"ok-txt"},"Al día según lo cargado."):null),
+    el("div",{class:"card"},el("h3",{},"Datos para completar ("+df.length+")"),df.length?el("ul",{},df.map(x=>el("li",{},x))):el("p",{class:"ok-txt"},"Está todo completo."),
+      el("div",{class:"toolbar"},el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); editarPaciente(p.id); }},"Completar ahora"))));
+  if(p.nac&&false) c.append(el("div",{class:"card"},el("h3",{},"Consultar la web (IA, sin identificar)"),el("p",{class:"small muted"},"Para lo que no está en los manuales (circulares nuevas, brotes, casos especiales). Vas a ver exactamente qué se envía antes de enviarlo."),
+    el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>consultaAnonima(p)},"✨ Preparar consulta con Gemini")));
+  abrirOverlay("Revisar paciente",c);
+}
+function consultaAnonima(p){
+  const g=gemConfig(); const texto=resumenAnonimo(p);
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const area=el("textarea",{rows:9,style:"width:100%;box-sizing:border-box"},texto); const res=el("div",{class:"card",hidden:true,style:"white-space:pre-wrap"}); const aviso=el("div",{class:"note bad",hidden:true});
+  c.append(el("div",{class:"note bad"},"Esto es TODO lo que se va a enviar a Google (Gemini). No lleva nombre, DNI, domicilio, teléfono ni fechas exactas: solo la edad, las condiciones de riesgo y a qué edad se aplicó cada vacuna. Podés editarlo antes de enviar."),area);
+  if(!g.key){ c.append(el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Primero cargá la clave de Gemini")); abrirOverlay("Consulta sin identificar",c); return; }
+  const btn=el("button",{class:"btn",style:"min-height:48px",onclick:async()=>{ const m=datosPersonales(area.value); aviso.hidden=!m; if(m){ aviso.textContent="No lo envié: "+m+". Sacalo del texto."; return; }
+    btn.disabled=true; btn.textContent="Consultando la web…"; res.hidden=false; res.textContent="…";
+    try{ const a=await preguntarGemini("Datos de la persona (sin identificar):\n"+area.value+"\n\nPedido: 1) Según el Calendario Nacional de Argentina y las normas vigentes de Salta, ¿qué vacunas le faltan o están atrasadas y cuáles le corresponden ahora? 2) ¿Hay alguna circular, campaña o alerta vigente (2025-2026) que le aplique y no esté en el manual? 3) Si necesitás un dato más (por ejemplo un intervalo o una fecha) decí cuál. Respondé con una lista corta.",{max:1500});
+      res.textContent=a.replace(/\*\*/g,"").replace(/^\s*\*\s/gm,"• "); res.append(el("div",{class:"small muted",style:"margin-top:10px"},"✨ Respuesta de IA con búsqueda en la web. Puede equivocarse: confirmala con el manual y la historia clínica. La decisión es del equipo de salud.")); }
+    catch(e){ res.textContent="⚠ "+e.message; } btn.disabled=false; btn.textContent="Enviar a Gemini"; }},"Enviar a Gemini");
+  c.append(aviso,el("div",{class:"toolbar"},btn,el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>revisionPaciente(p)},"Cancelar")),res);
+  abrirOverlay("Consulta sin identificar",c);
+}
+
+/* ===================== USUARIOS: administrador e invitados (PIN en este celular) ===================== */
+function cardUsuarios(){
+  const inv=el("input",{type:"password",id:"pin-inv",inputmode:"numeric",placeholder:"PIN para invitados (4 a 8 números)",autocomplete:"new-password",style:"width:100%;box-sizing:border-box"});
+  return el("div",{class:"card"},el("h3",{},"Usuarios de este celular"),
+    el("p",{class:"small muted"},"Vos sos el administrador: ves y hacés todo. Los compañeros entran con otro PIN como Invitados: registran dosis, cargan pacientes y consultan, pero no pueden borrar ni restaurar copias."),
+    !S.pinHash?el("div",{class:"note"},"Primero poné tu PIN de administrador (abajo)."):null,
+    S.ajustes.pinInvitado?el("p",{class:"small"},"✓ El PIN de invitados está activo."):null,
+    S.pinHash?inv:null,
+    S.pinHash?el("div",{class:"toolbar"},el("button",{class:"btn",style:"min-height:48px",onclick:async()=>{ const v=inv.value.trim(); if(!/^\d{4,8}$/.test(v)){ toast("El PIN tiene que tener de 4 a 8 números"); return; } const h=await hash(v); if(h===S.pinHash){ toast("Tiene que ser distinto al tuyo"); return; } S.ajustes.pinInvitado=h; save(); render(); toast("PIN de invitados guardado"); }},S.ajustes.pinInvitado?"Cambiar PIN de invitados":"Crear PIN de invitados"),
+      S.ajustes.pinInvitado?el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>{ delete S.ajustes.pinInvitado; save(); render(); toast("PIN de invitados quitado"); }},"Quitar PIN de invitados"):null,
+      el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>location.reload()},"🔒 Bloquear ahora")):null,
+    el("p",{class:"small muted"},"Cada celular tiene sus propios PIN. Es un control para uso en equipo, no reemplaza la seguridad del celular."));
+}
 /* ===================== INICIO: COHORTES Y CAMPAÑAS ===================== */
 // Cohortes del año: nacidos (año - edad). 5 y 11 = esquema del calendario; 6 y 12 = recupero de lo que no se aplicó el año anterior.
 const COHORTES=[[5,5,"5 años · ingreso escolar",false],[11,11,"11 años",false],[6,5,"6 años · recupero del ingreso",true],[12,11,"12 años · recupero de los 11",true]];
@@ -2624,12 +2699,14 @@ function vDatos(v){
     el("div",{class:"toolbar"},
       el("button",{class:"btn",onclick:async()=>{ await guardarArchivo("Copias_"+iso(hoy)+".json",await armarCopia()); S.ultimaCopia=iso(hoy); save(); }},"Hacer copia"),
       el("label",{class:"btn ghost",style:"display:inline-block"},"Unir copia de otro celular",el("input",{type:"file",id:"f-unir",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; const r=unirCopia(d); render(); toast("Unido: "+r.nuevos+" pacientes nuevos, "+r.actualizados+" actualizados, "+r.vacunas+" vacunas, "+r.visitas+" visitas, "+r.lotes+" lotes, "+(r.adjuntos||0)+" planillas"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); e.target.value=""; }})),
-      el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; if(Array.isArray(d.lotes)) S.lotes=d.lotes; if(Array.isArray(d.adjuntos)){ S.adjuntos=d.adjuntos; guardarArchivosDeCopia(d); } if(d.logo) S.ajustes.logo=d.logo; save(); pintarLogo(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
+      !esAdmin()?null:el("label",{class:"btn ghost",style:"display:inline-block"},"Restaurar copia",el("input",{type:"file",id:"f-restore",accept:".json,application/json",hidden:true,onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(!Array.isArray(d.pacientes)) throw 0; S.pacientes=d.pacientes; if(Array.isArray(d.visitas)) S.visitas=d.visitas; if(Array.isArray(d.lotes)) S.lotes=d.lotes; if(Array.isArray(d.adjuntos)){ S.adjuntos=d.adjuntos; guardarArchivosDeCopia(d); } if(d.logo) S.ajustes.logo=d.logo; save(); pintarLogo(); render(); toast(d.pacientes.length+" pacientes restaurados"); }catch(_){ toast("Ese archivo no es una copia válida"); } }; rd.readAsText(f); }})))));
   const nEj=S.pacientes.filter(p=>p.ejemplo).length;
-  if(nEj) v.append(el("div",{class:"card"},el("h3",{},"Pacientes de ejemplo"),el("p",{class:"small muted"},"Hay "+nEj+" pacientes inventados para mostrar la app."),el("div",{class:"toolbar"},el("button",{class:"btn danger",onclick:()=>{S.pacientes=S.pacientes.filter(p=>!p.ejemplo); S.visitas=(S.visitas||[]).filter(x=>!x.ejemplo); save(); render(); toast("Ejemplos borrados");}},"Borrar ejemplos"))));
+  if(nEj&&esAdmin()) v.append(el("div",{class:"card"},el("h3",{},"Pacientes de ejemplo"),el("p",{class:"small muted"},"Hay "+nEj+" pacientes inventados para mostrar la app."),el("div",{class:"toolbar"},el("button",{class:"btn danger",onclick:()=>{S.pacientes=S.pacientes.filter(p=>!p.ejemplo); S.visitas=(S.visitas||[]).filter(x=>!x.ejemplo); save(); render(); toast("Ejemplos borrados");}},"Borrar ejemplos"))));
   // PIN
   const pinIn=el("input",{type:"password",id:"pin-new",inputmode:"numeric",placeholder:"PIN de 4 a 8 números",autocomplete:"new-password"});
-  v.append(el("div",{class:"card"},el("h3",{},"PIN para entrar"),
+  if(!esAdmin()) v.append(el("div",{class:"card"},el("h3",{},"Sesión: Invitado"),el("p",{class:"small muted"},"Podés registrar dosis, cargar pacientes y consultar. No podés borrar ni restaurar copias: eso lo hace el administrador."),el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>location.reload()},"🔒 Bloquear ahora")));
+  if(esAdmin()) v.append(cardUsuarios());
+  if(esAdmin()) v.append(el("div",{class:"card"},el("h3",{},"PIN del administrador"),
     el("p",{class:"small muted"},S.pinHash?"La app pide PIN al abrirse.":"Poné un PIN para que nadie más vea los datos si dejás el celular."),
     pinIn,
     el("div",{class:"toolbar"},
@@ -2638,7 +2715,7 @@ function vDatos(v){
   v.append(el("div",{class:"card"},el("h3",{},"Logo del centro de salud"),
     logoActual()?el("img",{src:logoActual(),alt:"Logo actual",style:"max-width:120px;max-height:120px;border-radius:12px;background:#fff;padding:4px;border:1px solid var(--line)"}):el("p",{class:"small muted"},"Subí una foto o imagen del logo. Aparece arriba en la app y en el carnet PDF."),
     el("div",{class:"toolbar"},el("label",{class:"btn"},logoActual()?"Cambiar logo":"Subir logo",el("input",{type:"file",id:"f-logo",accept:"image/*",hidden:true,onchange:e=>{ if(e.target.files[0]) subirLogo(e.target.files[0]); e.target.value=""; }})),
-      S.ajustes.logo?el("button",{class:"btn ghost",onclick:()=>{ delete S.ajustes.logo; save(); pintarLogo(); render(); }},"Quitar logo"):null)));
+      S.ajustes.logo&&esAdmin()?el("button",{class:"btn ghost",onclick:()=>{ delete S.ajustes.logo; save(); pintarLogo(); render(); }},"Quitar logo"):null)));
   if("Notification" in window){ const st=Notification.permission;
     v.append(el("div",{class:"card"},el("h3",{},"Avisos en el celular"),
       el("p",{class:"small muted"},st==="granted"?"Activados: una vez por día, al abrir la app, te avisa cuántos pacientes tienen vacunas atrasadas.":st==="denied"?"Los avisos están bloqueados. Activalos en los ajustes del navegador para esta página.":"Recibí un aviso por día con la cantidad de pacientes con vacunas atrasadas."),
@@ -2707,7 +2784,7 @@ async function iniciar(){
     save(true); }
   if(S.pinHash){
     const sp=$("#splash"); if(sp) sp.remove(); const lk=$("#lock"); lk.hidden=false; const inp=$("#lock-pin"); setTimeout(()=>inp.focus(),50);
-    const probar=async()=>{ if(await hash(inp.value)===S.pinHash){ lk.hidden=true; render(); } else { $("#lock-msg").textContent="PIN incorrecto"; inp.value=""; } };
+    const probar=async()=>{ const h=await hash(inp.value); if(h===S.pinHash||(S.ajustes.pinInvitado&&h===S.ajustes.pinInvitado)){ ROL=h===S.pinHash?"admin":"invitado"; lk.hidden=true; render(); aplicarRol(); if(ROL==="invitado") toast("Entraste como Invitado"); } else { $("#lock-msg").textContent="PIN incorrecto"; inp.value=""; } };
     $("#lock-ok").onclick=probar; inp.onkeydown=e=>{ if(e.key==="Enter") probar(); };
   } else render();
   setTimeout(avisoDiario,1500);
@@ -2716,7 +2793,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="c117748d4b";
+window.APP_VER="06db48455e";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
