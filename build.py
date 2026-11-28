@@ -33,7 +33,7 @@ json.dump({"name":"Vacunatorio · CS N° 41 Tres Cerritos","short_name":"Vacunat
  "id":"./","description":"Control de vacunas faltantes, registro de aplicaciones, escuelas y visitas domiciliarias.","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]},open('manifest.json','w'),ensure_ascii=False,indent=1)
 open('sw.js','w').write('''// Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
 const APP="vacunatorio-%s", TILES="mapa-tiles-v1", MAX_TILES=3000;
-const ARCHIVOS=["./","index.html","manifest.json","icon-192.png","icon-512.png","icon-maskable-512.png",
+const ARCHIVOS=["./","index.html","manifest.json","icon-192.png","icon-512.png","icon-maskable-512.png","carnet/ninos-1.jpg","carnet/ninos-2.jpg","carnet/adultos-1.jpg","carnet/adultos-2.jpg",
  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",

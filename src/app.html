@@ -1086,10 +1086,68 @@ function dibujarCarnetNuevo(doc,p){
   const exI=Math.max(0,tot-nIzq); tabla(8,T.izq,exI,yTab,alto,0); tabla(W-8-cols[5],T.der,Math.max(0,tot-nDer),yTab,alto,exI);
   doc.setFont("helvetica","normal"); doc.setFontSize(6); doc.setTextColor(90); doc.text("Carnet de vacunación · "+nom.toUpperCase()+" · emitido el "+fmt(iso(hoy))+" · Centro de Salud N° 41 Gerónimo Angeletti · Tres Cerritos",W/2,H-6.5,{align:"center"});
 }
+
+/* ===================== CARNET SOBRE LA PLANTILLA OFICIAL (CUV en blanco, incluida en la app) ===================== */
+// Se dibujan encima de las imágenes del carnet en blanco: datos del paciente, dosis, fechas, lotes y sello. Medidas en puntos (623,6 x 425,2).
+const R=(...a)=>a;
+const CPL={
+ ninos:{img:"carnet/ninos",
+  xL:{dosis:[109,163],fecha:[163,200],lote:[200,239],firma:[239,307]}, xR:{dosis:[385.2,438.1],fecha:[438.1,475.9],lote:[475.9,514.3],firma:[514.3,582]},
+  izq:[{re:/hepatitis b/,rows:[["neo",43,71]]},{re:/bcg/,rows:[["u",71,99]]},{re:/rotavirus/,rows:[["1",99,117.5],["2",117.5,135.7]]},{re:/neumococo/,rows:[["1",135.7,154.1],["2",154.1,171.8],["r",171.8,190.2]]},{re:/quintuple|pentavalente/,rows:[["1",190.2,208.7],["2",208.7,226.6],["3",226.6,244.8],["r",244.8,263.6]]},{re:/salk|ipv|polio/,rows:[["1",263.6,281],["2",281,299.4],["3",299.4,317.9],["r",317.9,336.1]]},{re:/meningo/,rows:[["1",336.1,353.8],["2",353.8,372.2],["r",372.2,390.2],["u",390.2,408.3]]}],
+  der:[{re:/gripe|antigripal|influenza/,rows:[["1",43,61.2],["2",61.2,79.9],["3",79.9,97.7]]},{re:/hepatitis a/,rows:[["u",97.7,126.3]]},{re:/triple viral|sarampion|sarampión/,rows:[["1",126.3,144.5],["2",144.5,162.7]]},{re:/varicela/,rows:[["1",162.7,180.9],["2",180.9,199.1]]},{re:/celular|dpt/,rows:[["r",199.1,233]]},{re:/acelular|dtpa/,rows:[["r",233,267.4]]},{re:/vph|papiloma/,rows:[["u",267.4,305.1]]},{re:/fiebre amarilla/,rows:[["1",305.1,322.2],["r",322.2,340]]}],
+  otrasL:[], otrasR:[R(340,357.2),R(357.2,375.4),R(375.4,392.5),R(392.5,408.3)], dosisImpresa:true},
+ adultos:{img:"carnet/adultos",
+  xL:{dosis:[102,145.4],fecha:[145.4,187.4],lote:[187.4,228.8],firma:[228.8,290]}, xR:{dosis:[412,455.4],fecha:[455.4,497.4],lote:[497.4,538.8],firma:[538.8,600]},
+  izq:[{re:/doble bacteriana|\bdt\b/,rows:[["s",60,81.6],["s",81.6,103.8],["s",103.8,124.3],["s",124.3,146.5]]},{re:/acelular|dtpa/,rows:[["s",146.5,168.6],["s",168.6,190.8],["s",190.8,212.4],["s",212.4,233.6]]},{re:/triple viral|doble viral|sarampion|sarampión/,rows:[["s",233.6,255.2],["s",255.2,276.7]]},{re:/neumococo/,rows:[["s",276.7,298.3],["s",298.3,319.4],["s",319.4,340]]},{re:/hepatitis b/,rows:[["1",340,364.4],["2",364.4,386.5],["3",386.5,408.3]],impresa:true}],
+  der:[{re:/gripe|antigripal|influenza/,rows:[["s",60,81.6],["s",81.6,103.8],["s",103.8,124.3],["s",124.3,146.5],["s",146.5,168.6],["s",168.6,190.8],["s",190.8,214.4]]},{re:/vsr|sincicial/,rows:[["s",214.4,253.2]]}],
+  otrasL:[], otrasR:[R(253.2,275.2),R(275.2,299),R(299,321.5),R(321.5,342.6),R(342.6,364.4),R(364.4,386.5),R(386.5,408.3)], dosisImpresa:false}};
+const COVER_Y=[154.6,186,218,247.3,277.6,313.8,345.5], COVER_X=[407.6,414.6,363.6,377.4,380.8,380.4,380.3];
+const _imgsCarnet={};
+async function imgCarnet(base,n){ const k=base+"-"+n; if(_imgsCarnet[k]) return _imgsCarnet[k];
+  const r=await fetch(k+".jpg"); if(!r.ok) throw new Error("sin plantilla"); const b=await r.blob();
+  return _imgsCarnet[k]=await new Promise((ok,no)=>{ const f=new FileReader(); f.onload=()=>ok(f.result); f.onerror=no; f.readAsDataURL(b); }); }
+function asignarCarnet(regs,grupos){ const asign=new Map(), otras=[]; const grupoDe=r=>grupos.find(g=>g.re.test(norm(r.vac)));
+  regs.forEach(r=>{ const g=grupoDe(r); if(!g){ otras.push(r); return; } const k=claveDosis(r.dosis); const rows=g.rows; const libre=i=>!asign.has(g.re.source+i);
+    let i=rows.findIndex((x,j)=>x[0]===k&&libre(j)); if(i<0&&k==="r") i=rows.findIndex((x,j)=>x[0]==="r"&&libre(j));
+    if(i<0) i=rows.findIndex((x,j)=>x[0]==="s"&&libre(j));
+    if(i<0) i=rows.findIndex((x,j)=>libre(j)&&!regs.some(o=>o!==r&&grupoDe(o)===g&&claveDosis(o.dosis)===x[0]));
+    if(i<0) otras.push(r); else asign.set(g.re.source+i,r); });
+  return {asign,otras}; }
+function dibujarCarnetPlantilla(doc,p,img1,img2,C){
+  const W=623.622,H=425.197; const adulto=C===CPL.adultos;
+  const sello=(x,y,w,h)=>{ doc.setFont("helvetica","bold"); doc.setFontSize(6.2); doc.setTextColor(20); doc.text("Centro de Salud",x+w/2,y+h/2-0.6,{align:"center"}); doc.text("N° 41",x+w/2,y+h/2+6.4,{align:"center"}); };
+  const mark=()=>{ const L=S.ajustes&&S.ajustes.logo; if(!L) return; try{ const f=/^data:image\/jpe?g/i.test(L)?"JPEG":"PNG"; const t=300; if(doc.GState&&doc.setGState){ doc.saveGraphicsState(); doc.setGState(new doc.GState({opacity:0.12})); doc.addImage(L,f,(W-t)/2,(H-t)/2,t,t); doc.restoreGraphicsState(); } }catch(e){} };
+  // CARA 1
+  doc.addImage(img1,"JPEG",0,0,W,H); mark();
+  const nom=((p.nombre||"")+" "+(p.apellido||"")).trim().toUpperCase();
+  const dom=[p.domicilio,p.barrio?("B° "+p.barrio):""].filter(Boolean).join(" · ");
+  const vals=[nom,p.nac?fmt(p.nac):"",p.dni||"",p.telefono||"",dom,"Tres Cerritos, Salta","Salta"];
+  doc.setFont("helvetica","bold"); doc.setTextColor(0);
+  vals.forEach((v,i)=>{ let sz=i===4?9.2:10.5; const maxW=594-COVER_X[i]; doc.setFontSize(sz); while(sz>6&&doc.getTextWidth(v)>maxW){ sz-=0.4; doc.setFontSize(sz); } doc.text(String(v),COVER_X[i],COVER_Y[i]); });
+  // CARA 2
+  doc.addPage(); doc.addImage(img2,"JPEG",0,0,W,H); mark();
+  const regs=aplicacionesDe(p).map(h=>{ const r=regla(h.dosis)||{vac:h.dosis,dosis:""}; return {h,vac:nombreSisa(r,p,h.fecha),dosis:dosisSisa(r)}; }).sort((a,b)=>a.h.fecha<b.h.fecha?-1:1);
+  const {asign,otras}=asignarCarnet(regs,[...C.izq,...C.der]);
+  const celda=(r,xs,a,b,etDosis)=>{ const cy=(a+b)/2; doc.setTextColor(0); doc.setFont("helvetica","bold");
+    if(etDosis){ doc.setFont("helvetica","normal"); doc.setFontSize(5.4); const t=doc.splitTextToSize(r.dosis||"",xs.dosis[1]-xs.dosis[0]-3).slice(0,2); doc.text(t,(xs.dosis[0]+xs.dosis[1])/2,cy-(t.length-1)*2.5+1.5,{align:"center"}); doc.setFont("helvetica","bold"); }
+    doc.setFontSize(5.8); doc.text(fmt(r.h.fecha),(xs.fecha[0]+xs.fecha[1])/2,cy+2,{align:"center"});
+    const lt=String(r.h.lote||""); if(lt){ let sz=lt.length<=6?8.5:6; doc.setFontSize(sz); const mw=xs.lote[1]-xs.lote[0]-3; while(sz>4&&doc.getTextWidth(lt)>mw){ sz-=0.3; doc.setFontSize(sz); } doc.text(lt,(xs.lote[0]+xs.lote[1])/2,cy+2.4,{align:"center"}); }
+    sello(xs.firma[0],a,xs.firma[1]-xs.firma[0],b-a); };
+  [[C.izq,C.xL],[C.der,C.xR]].forEach(([gs,xs])=>gs.forEach(g=>g.rows.forEach(([k,a,b],i)=>{ const r=asign.get(g.re.source+i); if(r) celda(r,xs,a,b,!C.dosisImpresa&&!g.impresa); })));
+  let oi=0; [[C.otrasL,C.xL],[C.otrasR,C.xR]].forEach(([rows,xs])=>rows.forEach(([a,b])=>{ const r=otras[oi++]; if(!r) return;
+    doc.setFont("helvetica","normal"); doc.setFontSize(5); doc.setTextColor(0); const t=doc.splitTextToSize((r.vac+" "+(r.dosis||"")).trim(),xs.dosis[1]-xs.dosis[0]-3).slice(0,3); doc.text(t,xs.dosis[0]+1.5,(a+b)/2-(t.length-1)*2.4+1.4);
+    celda(r,xs,a,b,false); }));
+}
 async function carnetPDF(p){
   if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return; }
-  const doc=new window.jspdf.jsPDF({unit:"mm",format:[220,150],orientation:"landscape"}); dibujarCarnetNuevo(doc,p);
-  return guardarArchivo("Carnet_"+slug(p.apellido||"paciente")+"_"+(p.dni||"")+"_"+iso(hoy)+".pdf",doc.output("blob"),"application/pdf"); }
+  const nombre="Carnet_"+slug(p.apellido||"paciente")+"_"+(p.dni||"")+"_"+iso(hoy)+".pdf";
+  try{ const adulto=p.nac&&edadMeses(p.nac)>=18*12; const C=adulto?CPL.adultos:CPL.ninos;
+    const [i1,i2]=await Promise.all([imgCarnet(C.img,1),imgCarnet(C.img,2)]);
+    const doc=new window.jspdf.jsPDF({unit:"pt",format:[623.622,425.197],orientation:"landscape"}); dibujarCarnetPlantilla(doc,p,i1,i2,C);
+    return guardarArchivo(nombre,doc.output("blob"),"application/pdf");
+  }catch(e){ // sin la plantilla (por ejemplo, sin haber abierto nunca la app con internet): diseño propio
+    const doc=new window.jspdf.jsPDF({unit:"mm",format:[220,150],orientation:"landscape"}); dibujarCarnetNuevo(doc,p);
+    return guardarArchivo(nombre,doc.output("blob"),"application/pdf"); } }
 // Un solo PDF con una hoja por persona (para imprimir o compartir por WhatsApp)
 async function certificadosPDF(lista,nombre,opt){
   if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return; }

@@ -1,6 +1,6 @@
 // Funciona sin internet: guarda la app, las librerías y los pedazos de mapa ya vistos.
-const APP="vacunatorio-1248644d64", TILES="mapa-tiles-v1", MAX_TILES=3000;
-const ARCHIVOS=["./","index.html","manifest.json","icon-192.png","icon-512.png","icon-maskable-512.png",
+const APP="vacunatorio-c5dd9a74f7", TILES="mapa-tiles-v1", MAX_TILES=3000;
+const ARCHIVOS=["./","index.html","manifest.json","icon-192.png","icon-512.png","icon-maskable-512.png","carnet/ninos-1.jpg","carnet/ninos-2.jpg","carnet/adultos-1.jpg","carnet/adultos-2.jpg",
  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
