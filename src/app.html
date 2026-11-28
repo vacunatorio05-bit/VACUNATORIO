@@ -580,6 +580,7 @@ function vPendientes(v){
   v.append(el("div",{class:"tiles"},
     tile("vac","linear-gradient(135deg,#0b5fc4,#0a4fa8)","Registrar vacuna",()=>flujoRegistro()),
     tile("per","linear-gradient(135deg,#7a3fd1,#5b2bb0)","Nuevo paciente",()=>editarPaciente(null)),
+    tile("xls","linear-gradient(135deg,#7a3fd1,#4b2a9c)","Cargar desde foto",()=>dialogoCargaArchivo()),
     tile("esc","linear-gradient(135deg,#0e9f8f,#0b7a6e)","Alumno",()=>formAlumno(null)),
     tile("map","linear-gradient(135deg,#e0532c,#bf3b18)","Visita",()=>nuevaVisita(null)),
     tile("cam","linear-gradient(135deg,#2a7bd6,#1a5fae)","Cámara",()=>camIn.click()),
@@ -588,6 +589,7 @@ function vPendientes(v){
     tile("xls","linear-gradient(135deg,#1fa356,#0e7a37)","Exportar Excel",exportarTodo),
     tileA("ext","linear-gradient(135deg,#334a66,#1d2f45)","SISA NomiVac",ENLACES_FIJOS[0][1]),
     tileA("ext","linear-gradient(135deg,#0b8fb0,#086f8a)","Acuario",ENLACES_FIJOS[1][1]),camIn));
+  { const pc=panelCompletar(); if(pc) v.append(pc); }
   v.append(panelCohortes(),panelCampanias());
   { const qi=el("input",{type:"search",placeholder:"¿Qué le toca a un nene de 5 años?",enterkeyhint:"search",style:"flex:1;min-height:46px"});
     const fq=el("form",{class:"toolbar",style:"flex-wrap:nowrap"},qi,el("button",{class:"btn",type:"submit"},"Preguntar"));
@@ -626,7 +628,8 @@ function vPendientes(v){
 
 /* ===================== PESTAÑA: PACIENTES ===================== */
 function vPacientes(v){
-  v.append(el("div",{class:"toolbar"},el("h2",{style:"flex:1"},"Pacientes"),el("button",{class:"btn",onclick:()=>editarPaciente(null)},"+ Nuevo")));
+  v.append(el("div",{class:"toolbar"},el("h2",{style:"flex:1"},"Pacientes"),el("button",{class:"btn ghost",onclick:()=>dialogoCargaArchivo()},"📥 Desde foto"),el("button",{class:"btn",onclick:()=>editarPaciente(null)},"+ Nuevo")));
+  { const pc=panelCompletar(); if(pc) v.append(pc); }
   const q=el("input",{id:"buscar",type:"search",placeholder:"Buscar por apellido, nombre o DNI",value:filtro,oninput:e=>{filtro=e.target.value; pintar();}});
   v.append(q);
   const cont=el("div"); v.append(cont);
@@ -1662,6 +1665,195 @@ function importarExterno(tipo,filas,nombre){
   }},"Importar"),el("button",{class:"btn ghost",onclick:cerrarOverlay},"Cancelar")));
   abrirOverlay("Importar desde "+(tipo==="sisa"?"SISA":"Acuario"),c);
 }
+/* ===================== CARGAR DESDE FOTO, CAPTURA O ARCHIVO (todo se lee en este celular; nada sale a internet) ===================== */
+const OCR_BASE="ocr";
+function cargarScript(src){ return new Promise((ok,no)=>{ const s=document.createElement("script"); s.src=src; s.onload=ok; s.onerror=()=>no(new Error("No se pudo cargar "+src+". Hace falta abrir esta opción una vez con internet.")); document.head.append(s); }); }
+let _ocrW=null;
+async function ocrWorker(){ if(!window.Tesseract) await cargarScript(OCR_BASE+"/tesseract.min.js");
+  if(!_ocrW) _ocrW=await Tesseract.createWorker("spa",1,{workerPath:OCR_BASE+"/worker.min.js",corePath:OCR_BASE,langPath:OCR_BASE+"/lang",gzip:true,workerBlobURL:false,logger:m=>{ if(window._ocrProg&&m.status==="recognizing text") window._ocrProg(m.progress); }});
+  return _ocrW; }
+// Imagen → canvas: se agranda si es chica (capturas), se pasa a grises y, si es fondo oscuro, se invierte
+async function imagenACanvas(file,min=2000,max=3000){
+  const bmp=await createImageBitmap(file); let k=1; const m=Math.max(bmp.width,bmp.height); if(m<min) k=min/m; else if(m>max) k=max/m;
+  const c=document.createElement("canvas"); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k); const x=c.getContext("2d",{willReadFrequently:true}); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height); x.drawImage(bmp,0,0,c.width,c.height);
+  return c; }
+function prepararOCR(c){ const x=c.getContext("2d",{willReadFrequently:true}); const im=x.getImageData(0,0,c.width,c.height), d=im.data; let suma=0; const g=new Uint8ClampedArray(d.length/4);
+  for(let i=0,j=0;i<d.length;i+=4,j++){ g[j]=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114); suma+=g[j]; }
+  const oscuro=suma/g.length<110; for(let i=0,j=0;i<d.length;i+=4,j++){ const v=oscuro?255-g[j]:g[j]; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; } x.putImageData(im,0,0); return c; }
+async function ocrDe(canvas){ const w=await ocrWorker(); const r=await w.recognize(prepararOCR(canvas)); return r.data.text||""; }
+// Código de barras PDF417 del dorso del DNI argentino
+async function leerPDF417(canvas){
+  if("BarcodeDetector" in window){ try{ const d=new BarcodeDetector({formats:["pdf417"]}); const r=await d.detect(canvas); if(r.length&&r[0].rawValue) return r[0].rawValue; }catch(e){} }
+  try{ if(!window.ZXing) await cargarScript(OCR_BASE+"/zxing.min.js");
+    const hints=new Map(); hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.PDF_417]); hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+    const rd=new ZXing.MultiFormatReader(); rd.setHints(hints);
+    for(const esc of [1,0.55]) for(const rot of [0,180,90,270]){ const w=Math.round(canvas.width*esc), h=Math.round(canvas.height*esc); const t=document.createElement("canvas"); const gir=rot%180!==0; t.width=gir?h:w; t.height=gir?w:h;
+      const x=t.getContext("2d",{willReadFrequently:true}); x.fillStyle="#fff"; x.fillRect(0,0,t.width,t.height); x.translate(t.width/2,t.height/2); x.rotate(rot*Math.PI/180); x.drawImage(canvas,-w/2,-h/2,w,h);
+      try{ const src=new ZXing.HTMLCanvasElementLuminanceSource(t); const r=rd.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src))); if(r&&r.getText()) return r.getText(); }catch(e){} }
+  }catch(e){ if(/internet/.test(e.message)) throw e; }
+  return null; }
+const MESES3={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,set:9,oct:10,nov:11,dic:12};
+function fechaTextoALibre(s){ s=String(s||"").trim(); let m=/(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{2,4})/.exec(s); let d,mo,y;
+  if(m){ d=+m[1]; mo=+m[2]; y=+m[3]; } else { m=/(\d{1,2})\s*([A-Za-z]{3})[A-Za-z]*\s*(?:\/\s*[A-Za-z]{3,}\s*)?(\d{4})/.exec(s); if(!m||!MESES3[norm(m[2])]) return ""; d=+m[1]; mo=MESES3[norm(m[2])]; y=+m[3]; }
+  if(y<100) y=y<=((hoy.getFullYear()+1)%100)?2000+y:1900+y; if(mo<1||mo>12||d<1||d>31||y<1900||y>hoy.getFullYear()+1) return "";
+  const t=new Date(y,mo-1,d); if(t.getMonth()!==mo-1) return ""; return iso(t); }
+function parseDNIcodigo(t){ const a=String(t).split("@").map(x=>x.trim()); const o={}; const i=a.findIndex((x,k)=>k>=2&&/^[MFX]$/.test(x)&&/^\d{7,8}$/.test(a[k+1]||""));
+  if(i>=2){ o.apellido=a[i-2]; o.nombre=a[i-1]; o.sexo=a[i]; o.dni=a[i+1]; const f=a.slice(i+2).find(x=>/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(x)); if(f) o.nac=fechaTextoALibre(f); }
+  else { const d=a.find(x=>/^\d{7,8}$/.test(x)); if(d) o.dni=d; const sx=a.find(x=>/^[MFX]$/.test(x)); if(sx) o.sexo=sx; const f=a.find(x=>/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(x)); if(f) o.nac=fechaTextoALibre(f);
+    const nom=a.filter(x=>/^[A-ZÁÉÍÓÚÑ ]{2,}$/.test(x)&&!/ARGENTIN/.test(x)); if(nom[0]) o.apellido=nom[0]; if(nom[1]) o.nombre=nom[1]; }
+  if(o.apellido) o.apellido=o.apellido.toUpperCase(); if(o.nombre) o.nombre=o.nombre.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
+  return (o.dni||o.apellido)?o:null; }
+// Etiquetas de datos del paciente en un texto (DNI de frente y dorso, historia clínica, carnet)
+function parseCamposTexto(texto){ const L=String(texto).split(/\r?\n/).map(x=>x.replace(/\s+/g," ").trim()).filter(Boolean); const o={}; const dud=new Set();
+  const val=(i,re)=>{ const m=re.exec(L[i]); let v=m?m[m.length-1].replace(/^[\s:\-–|]+/,"").trim():""; if(!v&&L[i+1]&&!/^[A-Za-zÁÉÍÓÚñ ]{3,40}[:]/.test(L[i+1])) v=L[i+1]; return v.replace(/\s*\/\s*[A-Za-z ]+$/,"").trim(); };
+  L.forEach((ln,i)=>{ const n=norm(ln);
+    let m;
+    if(!o.apellido&&/^(apellidos?|surname)\b/.test(n)&&!/^apellidos? (y|,) ?nombre/.test(n)){ o.apellido=val(i,/^(?:apellidos?|surname)[^:]*[:]?\s*(.*)$/i); dud.add("apellido"); }
+    else if(/^(apellido y nombre|apellido y nombres|paciente|nombre y apellido|apellido, nombre)\b/.test(n)){ const v=val(i,/^[^:]*:\s*(.*)$/); if(v){ if(v.includes(",")){ const [ap,no]=v.split(","); o.apellido=ap.trim(); o.nombre=no.trim(); } else { const p=v.split(" "); if(/^nombre y apellido/.test(n)){ o.nombre=p.slice(0,-1).join(" "); o.apellido=p.slice(-1)[0]; } else { o.apellido=p[0]; o.nombre=p.slice(1).join(" "); } dud.add("apellido"); dud.add("nombre"); } } }
+    else if(!o.nombre&&/^(nombres?|name)\b/.test(n)){ o.nombre=val(i,/^(?:nombres?|name)[^:]*[:]?\s*(.*)$/i); dud.add("nombre"); }
+    if(!o.dni&&(m=/(?:dni|d\.n\.i\.?|documento|n[uú]mero de documento|nro\.? doc\w*|doc\.?)[^0-9]{0,30}(\d{1,2}[\.\s]?\d{3}[\.\s]?\d{3})/i.exec(ln))){ o.dni=m[1].replace(/\D/g,""); dud.add("dni"); }
+    if(!o.nac&&/(nacimiento|f\. ?nac|birth|nac\.)/.test(n)){ const f=fechaTextoALibre(ln)||fechaTextoALibre(L[i+1]||""); if(f){ o.nac=f; dud.add("nac"); } }
+    if(!o.sexo&&(m=/\b(?:sexo|sex)\b[^A-Za-z]{0,6}(masculino|femenino|[MFX])\b/i.exec(ln))){ o.sexo=/^m/i.test(m[1])?"M":/^f/i.test(m[1])?"F":"X"; dud.add("sexo"); }
+    if(!o.domicilio&&/^(domicilio|direcci[oó]n|dom\.)\b/.test(n)){ const v=val(i,/^[^:]*:?\s*(.*)$/); if(v){ o.domicilio=v; dud.add("domicilio"); } }
+    if(!o.telefono&&(m=/(?:tel[eé]fono|tel\.?|celular|cel\.?)[^0-9+]{0,12}([0-9][0-9 \-]{6,})/i.exec(ln))){ o.telefono=m[1].trim(); dud.add("telefono"); } });
+  if(o.apellido) o.apellido=o.apellido.toUpperCase(); return {campos:o,dudas:dud}; }
+// Vacunas en un texto: una línea con fecha + nombre de vacuna (o la vacuna de una línea anterior si la fila viene sin nombre)
+const ALIAS_VAC=[[/triple viral|\bsrp\b|sarampion.{0,12}paperas/,"Triple Viral"],[/doble viral|\bsr\b|sarampion.{0,12}rubeola/,"Doble Viral"],[/hepatitis ?b|\bhb\b|anti ?hep.{0,10}b\b/,"Hepatitis B"],[/hepatitis ?a|\bhav?\b/,"Hepatitis A"],
+ [/quintuple|pentavalente|\bpenta\b|\bpen\b/,"Quintuple"],[/\bbcg\b|tuberculosis/,"BCG"],[/salk|\bipv\b/,"IPV SALK"],[/sabin|bopv|\bopv\b/,"Sabín (OPV)"],[/rotavirus|\brota\b|rotv/,"Rotavirus Monovalente"],
+ [/neumococ.{0,25}\b13\b|vcn ?13|prevenar 13/,"Neumococo Conjugada VCN 13"],[/polisac|\bnp ?23\b|neumo.{0,12}23|vpn ?23/,"Neumococo Polisacárida 23"],[/neumococ|\bvcn|\bpcv|prevenar/,"Neumococo Conjugada VCN 20"],
+ [/mening|\bamc\b|acwy|menactra|nimenrix/,"Meningocócica Tetravalente Conjugada"],[/antigripal|\bgripe\b|influenza/,"Antigripal"],[/varicela|\bavc\b/,"Varicela"],
+ [/triple bacteriana acelular|dtpa|\bdpta\b|acelular/,"Triple Bacteriana Acelular"],[/triple bacteriana celular|\bdpt\b|celular/,"Triple Bacteriana Celular"],[/doble bacteriana|doble adulto|\bdt\b|\bdoble\b|toxoide/,"Doble Bacteriana"],
+ [/\bvph\b|\bhpv\b|papiloma/,"VPH Nonavalente"],[/sincicial|\bvsr\b/,"Virus Sincicial Respiratorio"],[/fiebre amarilla|\bfa\b/,"Fiebre Amarilla"],[/dengue|qdenga/,"Tetravalente contra el Dengue"],
+ [/antirrab|rabia|\batr\b/,"Antirrábica"],[/covid|pfizer|comirnaty|moderna|sinopharm|astrazeneca|sputnik/,"COVID-19"]];
+function vacunaDeLinea(n){ for(const [re,g] of ALIAS_VAC) if(re.test(n)) return g; return ""; }
+function dosisDeLinea(n){ if(/neonat|recien nacido|\brn\b/.test(n)) return "Dosis Neonatal"; let m=/(?:^|\s)([1-4])\s*(?:°|º|ra|da|er|ro|a|ª)?\s*dosis|dosis\s*([1-4])\b|\b([1-4])\s*(?:°|º|ª)\s/.exec(n); const k=m&&(m[1]||m[2]||m[3]); if(k) return k+(["","ra","da","ra","ta"][+k])+" Dosis"; if(/refuerzo|\bref\b/.test(n)) return "Refuerzo"; if(/unica|\bu\b dosis|dosis unica/.test(n)) return "Unica Dosis"; if(/anual/.test(n)) return "Dosis Anual"; return ""; }
+function loteDeLinea(ln){ let m=/lote[\s:.nº°]*([A-Z0-9][A-Z0-9\-\/]{2,14})/i.exec(ln); if(m) return m[1].toUpperCase(); const toks=ln.replace(/\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/g," ").split(/[\s|;,]+/);
+  const c=toks.find(t=>/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\-\/]{4,14}$/.test(t)&&!/^(vcn|hb|dt|dtpa|ipv|bcg|hpv|vph|covid|np|pcv)\d*$/i.test(t)); return c?c.toUpperCase():""; }
+function vacunadorDeLinea(ln){ if(ln.includes("|")){ const c=ln.split("|").map(x=>x.trim()).find(sg=>/^[A-Za-zÁÉÍÓÚÑáéíóúñ.' ]{4,40}$/.test(sg)&&!vacunaDeLinea(norm(sg))&&!/dosis|refuerzo|unica|anual|lote/i.test(sg)); if(c) return c; } let m=/(?:aplic[oó]|aplicad[ao] por|vacunador[a]?|vacun[oó]|responsable|enfermer[oa]|profesional|agente)\s*[:.\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ.,' ]{3,40})\s*(?:\||$)/i.exec(ln); if(m){ const v=m[1].replace(/\d.*$/,"").trim(); if(v.length>=3) return v; }
+  const lm=/lote[\s:.nº°]*[A-Z0-9][A-Z0-9\-\/]{2,14}/i.exec(ln); let resto=lm?ln.slice(lm.index+lm[0].length):ln.replace(/^.*\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/,""); resto=resto.replace(/^[\s|;,:\-]+/,"").replace(/\d.*$/,"").trim();
+  if(/^[A-Za-zÁÉÍÓÚÑáéíóúñ.' ]{4,40}$/.test(resto)&&resto.split(" ").length<=5&&!vacunaDeLinea(norm(resto))&&!/dosis|refuerzo|unica|lote/i.test(resto)) return resto; return ""; }
+function parseVacunasTexto(texto){ const L=String(texto).split(/\r?\n/).map(x=>x.replace(/\s+/g," ").trim()).filter(Boolean); const out=[], sueltas=[]; let ult="",ultN=-99;
+  L.forEach((ln,i)=>{ const n=norm(ln); const g=vacunaDeLinea(n); if(g){ ult=g; ultN=i; }
+    const fechas=[...ln.matchAll(/\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*\d{2,4}/g)].map(m=>({t:m[0],f:fechaTextoALibre(m[0])})).filter(x=>x.f);
+    const ok=fechas.filter(x=>x.f<=iso(hoy)); if(!fechas.length){ if(g&&!/[:]\s*$/.test(ln)) sueltas.push(ln); return; }
+    const vac=g||(i-ultN<=8?ult:""); if(!vac){ if(!/nacimiento|emision|vence|vto|fecha de (nac|emi)|tramite/.test(n)) sueltas.push(ln); return; }
+    if(/nacimiento|f\. ?nac/.test(n)&&!g) return; const f=(ok[0]||fechas[0]); const duda=[]; if(!ok.length) duda.push("la fecha es futura"); if(!g) duda.push("la vacuna la tomé de la fila de arriba"); const d=dosisDeLinea(n); if(!d) duda.push("no dice la dosis");
+    out.push({vac,dosis:d,fecha:f.f,lote:loteDeLinea(ln),vacunador:vacunadorDeLinea(ln),duda,raw:ln}); });
+  return {vacunas:out,sueltas}; }
+// Word (.docx): se abre el zip y se toma el texto de word/document.xml
+async function textoDeDocx(file){ const buf=new Uint8Array(await file.arrayBuffer()); const dv=new DataView(buf.buffer); let p=0, xml=null;
+  while(p+30<buf.length&&dv.getUint32(p,true)===0x04034b50){ const flag=dv.getUint16(p+6,true), met=dv.getUint16(p+8,true); let csz=dv.getUint32(p+18,true); const nl=dv.getUint16(p+26,true), el2=dv.getUint16(p+28,true); const name=new TextDecoder().decode(buf.slice(p+30,p+30+nl)); const ini=p+30+nl+el2;
+    if(flag&8&&!csz){ let q=ini; while(q+4<buf.length&&!(dv.getUint32(q,true)===0x08074b50||dv.getUint32(q,true)===0x04034b50||dv.getUint32(q,true)===0x02014b50)) q++; csz=q-ini; }
+    if(name==="word/document.xml"){ const data=buf.slice(ini,ini+csz); if(met===0) xml=new TextDecoder().decode(data); else { const ds=new DecompressionStream("deflate-raw"); const w=ds.writable.getWriter(); w.write(data); w.close(); xml=await new Response(ds.readable).text(); } break; }
+    p=ini+csz; if(flag&8) p+=(dv.getUint32(p,true)===0x08074b50?16:12); }
+  if(xml==null) throw new Error("No pude abrir el Word (¿es .docx?)");
+  return xml.replace(/<\/w:p>\s*<\/w:tc>/g," | ").replace(/<w:tab\/>/g," | ").replace(/<\/w:tc>/g," | ").replace(/<\/w:tr>/g,"\n").replace(/<\/w:p>/g,"\n").replace(/<w:br\/>/g,"\n").replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'"); }
+// PDF: con texto se lee directo; si es una foto escaneada se pasa por el OCR
+async function textoDePDF(file,progreso){ await cargarPDFJS(); const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; let txt="";
+  for(let n=1;n<=Math.min(pdf.numPages,8);n++){ const pg=await pdf.getPage(n); const tc=await pg.getTextContent(); const por={}; tc.items.filter(i=>i.str.trim()).forEach(i=>{ const y=Math.round(i.transform[5]/4); (por[y]=por[y]||[]).push({t:i.str,x:i.transform[4]}); });
+    Object.keys(por).map(Number).sort((a,b)=>b-a).forEach(y=>{ txt+=por[y].sort((a,b)=>a.x-b.x).map(c=>c.t).join(" ")+"\n"; }); }
+  if(txt.replace(/\s/g,"").length>40) return {texto:txt,ocr:false};
+  let o=""; for(let n=1;n<=Math.min(pdf.numPages,4);n++){ progreso&&progreso("Leyendo la página "+n+" con el lector de imágenes…"); const pg=await pdf.getPage(n); const vp=pg.getViewport({scale:2.2}); const c=document.createElement("canvas"); c.width=vp.width; c.height=vp.height; await pg.render({canvasContext:c.getContext("2d"),viewport:vp}).promise; o+=await ocrDe(c)+"\n"; }
+  return {texto:o,ocr:true}; }
+const CLAVES_XLS={apellido:["apellido","apellidos"],nombre:["nombre","nombres"],dni:["dni","documento","nro documento","nro. documento","nrodoc","numero de documento"],nac:["fecha de nacimiento","nacimiento","fecha nacimiento","f nac","fnac"],sexo:["sexo"],domicilio:["domicilio","direccion"],telefono:["telefono","tel","celular"],
+  vac:["vacuna","vacunas"],dosis:["dosis"],fecha:["fecha","fecha de aplicacion","fecha aplicacion","fecha de vacunacion"],lote:["lote"],vacunador:["vacunador","vacunadora","aplico","aplicado por","responsable","profesional","vacunador/a","quien aplico"],an:["apellido y nombre","apellido y nombres","paciente","nombre y apellido"]};
+function personasDeFilas(filas,cab,dudas){ const mapa={}; Object.entries(CLAVES_XLS).forEach(([k,al])=>{ const h=cab.find(c=>al.includes(norm(c))); if(h) mapa[k]=h; }); const grupos=new Map();
+  filas.forEach(f=>{ const g=k=>mapa[k]?String(f[mapa[k]]==null?"":f[mapa[k]]).trim():""; let ap=g("apellido"), no=g("nombre"); const an=g("an"); if(an&&!ap){ if(an.includes(",")){ [ap,no]=an.split(",").map(x=>x.trim()); } else { const p=an.split(" "); ap=p[0]; no=p.slice(1).join(" "); } }
+    const dni=g("dni").replace(/\.0+$/,"").replace(/\D/g,""); const clave=dni||(ap+"|"+no); if(!clave||clave==="|") return; if(!grupos.has(clave)) grupos.set(clave,{campos:{apellido:ap.toUpperCase(),nombre:no,dni,nac:mapa.nac?fechaDesde(f[mapa.nac]):"",sexo:/^[MFX]/i.test(g("sexo"))?g("sexo")[0].toUpperCase():"",domicilio:g("domicilio"),telefono:g("telefono")},dudas:new Set(),vacunas:[],fuentes:[]});
+    const P=grupos.get(clave); const vt=g("vac"), fe=mapa.fecha?fechaDesde(f[mapa.fecha]):""; if(vt&&fe){ const gr=vacunaDeLinea(norm(vt)); const duda=[]; if(!gr) duda.push("no reconocí la vacuna «"+vt+"»"); const d=dosisDeLinea(norm(g("dosis")))||g("dosis"); if(!d) duda.push("no dice la dosis"); P.vacunas.push({vac:gr,dosis:d,fecha:fe,lote:g("lote").toUpperCase(),vacunador:g("vacunador"),duda,raw:vt}); } });
+  return [...grupos.values()]; }
+async function leerArchivoCarga(file,prog){ const nom=file.name||"archivo"; const ext=(nom.split(".").pop()||"").toLowerCase(); const res={personas:[],avisos:[],fuente:nom,esImagen:/^image\//.test(file.type)||/^(jpe?g|png|webp|heic)$/.test(ext)};
+  const desdeTexto=(t,sure)=>{ const c=parseCamposTexto(t); const v=parseVacunasTexto(t); const dni=/documento|republica argentina|mercosur|tramite|nacionalidad/.test(norm(t)); res.personas.push({campos:c.campos,dudas:c.dudas,vacunas:dni&&!v.vacunas.length?[]:v.vacunas,sueltas:v.sueltas,fuentes:[nom]}); return {c,v}; };
+  if(res.esImagen){ const cv=await imagenACanvas(file); prog("Buscando el código de barras del DNI…"); const cod=await leerPDF417(cv); const camp={}; let sure=false; if(cod){ const o=parseDNIcodigo(cod); if(o){ Object.assign(camp,o); sure=true; } }
+    prog("Leyendo el texto de la imagen (puede tardar un poco)…"); const t=await ocrDe(cv); const c=parseCamposTexto(t); const v=parseVacunasTexto(t); const esDNI=/documento|republica argentina|mercosur|tramite|nacionalidad|domicilio/.test(norm(t))&&!v.vacunas.length;
+    const campos=Object.assign({},c.campos,camp); const dudas=new Set([...c.dudas].filter(k=>!(sure&&camp[k]))); res.personas.push({campos,dudas,vacunas:esDNI?[]:v.vacunas,sueltas:v.sueltas,fuentes:[nom],codigo:sure,deCodigo:Object.keys(camp)});
+    if(!t.trim()&&!sure) res.avisos.push("No pude leer texto en "+nom+". Probá con una foto más derecha, con buena luz y sin sombras."); else if(!sure&&esDNI) res.avisos.push("No encontré el código de barras del DNI en "+nom+": leí solo el texto, revisá bien los datos. Para mejor lectura, fotografiá el dorso del DNI de frente y bien enfocado.");
+    return res; }
+  if(ext==="pdf"){ const r=await textoDePDF(file,prog); if(r.ocr) res.avisos.push("El PDF era una imagen: lo leí con el lector de imágenes, revisalo bien."); desdeTexto(r.texto); return res; }
+  if(ext==="docx"){ const t=await textoDeDocx(file); desdeTexto(t); return res; }
+  if(ext==="doc") { res.avisos.push("El formato .doc viejo no se puede leer. Abrilo y guardalo como .docx o PDF."); return res; }
+  if(/^(xlsx|xls|csv|txt)$/.test(ext)){ if(ext==="txt"){ desdeTexto(await file.text()); return res; }
+    if(!window.XLSX) throw new Error("Para leer Excel hace falta abrir la app una vez con internet."); const u8=new Uint8Array(await file.arrayBuffer()); let wb; if(ext==="csv"){ let tx; try{ tx=new TextDecoder("utf-8",{fatal:true}).decode(u8); }catch(_){ tx=new TextDecoder("windows-1252").decode(u8); } wb=XLSX.read(tx,{type:"string",cellDates:true}); } else wb=XLSX.read(u8,{type:"array",cellDates:true});
+    const ext2=detectarExterno(wb); if(ext2){ res.externo={tipo:ext2.tipo,filas:ext2.filas}; return res; }
+    for(const sn of wb.SheetNames){ arreglarRango(wb.Sheets[sn]); const A=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}); let hi=-1; for(let i=0;i<Math.min(A.length,15);i++){ const r=A[i].map(x=>norm(String(x))); const n=Object.values(CLAVES_XLS).filter(al=>r.some(x=>al.includes(x))).length; if(n>=2){ hi=i; break; } }
+      if(hi>=0){ const cab=A[hi].map(x=>String(x).trim()); const filas=A.slice(hi+1).filter(r=>r.some(c=>c!=="")).map(r=>{ const o={}; cab.forEach((c,j)=>{ if(c) o[c]=r[j]; }); return o; }); const ps=personasDeFilas(filas,cab); ps.forEach(p=>{ p.fuentes=[nom]; p.dudas=new Set(); res.personas.push(p); }); }
+      else { const t=A.map(r=>r.filter(c=>c!=="").map(c=>c instanceof Date?fmt(iso(c)):String(c)).join(" | ")).join("\n"); desdeTexto(t); } }
+    return res; }
+  res.avisos.push("No sé leer archivos «."+ext+"». Probá con foto, captura, PDF, Excel o Word (.docx)."); return res; }
+// Junta lo leído de varios archivos del mismo paciente (frente + dorso del DNI + captura de vacunas)
+function unirPersonas(listas){ const todas=listas.flat(); const hojas=todas.filter(p=>p.vacunas.length&&p.fuentes.length&&p.multi); if(todas.some(p=>p.multi)) return todas; if(!todas.length) return [];
+  const U={campos:{},dudas:new Set(),vacunas:[],sueltas:[],fuentes:[],codigo:false}; const fijos=new Set();
+  todas.forEach(p=>{ Object.entries(p.campos).forEach(([k,v])=>{ if(v&&!U.campos[k]) U.campos[k]=v; }); if(p.codigo&&p.deCodigo) p.deCodigo.forEach(k=>{ if(p.campos[k]){ U.campos[k]=p.campos[k]; fijos.add(k); } }); p.dudas.forEach(k=>U.dudas.add(k)); p.vacunas.forEach(v=>{ if(!U.vacunas.some(x=>x.vac===v.vac&&x.fecha===v.fecha&&x.dosis===v.dosis)) U.vacunas.push(v); }); U.sueltas.push(...(p.sueltas||[])); U.fuentes.push(...p.fuentes); U.codigo=U.codigo||p.codigo; });
+  fijos.forEach(k=>U.dudas.delete(k));
+  return [U]; }
+const CAMPOS_PAC=[["apellido","Apellido"],["nombre","Nombre"],["dni","DNI"],["nac","Fecha de nacimiento (dd/mm/aaaa)"],["sexo","Sexo"],["domicilio","Domicilio y barrio"],["telefono","Teléfono"]];
+function faltantesPaciente(p){ const f=[]; if(!p.nac) f.push("fecha de nacimiento"); if(!p.dni) f.push("DNI"); if(!p.apellido||!p.nombre) f.push("nombre completo"); if(!p.sexo) f.push("sexo"); if(!p.domicilio) f.push("domicilio"); return f; }
+function dialogoCargaArchivo(){
+  const estado=el("div",{class:"small muted"}); const barra=el("progress",{max:1,value:0,hidden:true,style:"width:100%"}); const avisos=el("div");
+  const inp=el("input",{type:"file",hidden:true,multiple:true,accept:"image/*,.pdf,.xlsx,.xls,.csv,.docx,.txt",onchange:async e=>{ const fs=[...e.target.files]; e.target.value=""; if(!fs.length) return; await procesar(fs); }});
+  async function procesar(fs){ const listas=[], av=[], externos=[]; barra.hidden=false; window._ocrProg=p=>{ barra.value=p; };
+    for(let i=0;i<fs.length;i++){ const f=fs[i]; estado.textContent="Archivo "+(i+1)+" de "+fs.length+": "+f.name; barra.value=0; try{ const r=await leerArchivoCarga(f,t=>{ estado.textContent="Archivo "+(i+1)+" de "+fs.length+": "+t; }); r.personas.forEach(p=>p.multi=r.personas.length>1&&!!r.externo===false&&p.fuentes[0]===f.name&&r.personas.length>1&&/xls|csv/i.test(f.name)); listas.push(r.personas); av.push(...r.avisos); if(r.externo) externos.push({...r.externo,nombre:f.name}); }catch(err){ av.push("No pude leer "+f.name+": "+err.message); } }
+    barra.hidden=true; window._ocrProg=null; if(listas.flat().some(p=>p.codigo)){ for(let k=av.length-1;k>=0;k--) if(/código de barras del DNI/.test(av[k])) av.splice(k,1); } if(externos.length&&!listas.flat().length){ cerrarOverlay(); importarExterno(externos[0].tipo,externos[0].filas,externos[0].nombre); return; }
+    const personas=unirPersonas(listas); if(!personas.length){ estado.textContent=""; avisos.replaceChildren(...av.map(t=>el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},t)),el("p",{},"No encontré datos para cargar.")); return; }
+    pantallaRevision(personas,av,fs.filter(f=>/^image\/|pdf$/i.test(f.type||"")||/\.(pdf|jpe?g|png|webp)$/i.test(f.name))); }
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"},
+    el("div",{class:"card"},el("h3",{},"📥 Cargar desde foto o archivo"),el("p",{},"Elegí la captura de la historia clínica, la foto del DNI (frente y dorso), el carnet o un archivo con las vacunas. Podés elegir varios juntos."),
+      el("p",{class:"small"},el("b",{},"Todo se lee en este celular."),", no se envía ninguna foto ni dato a internet. Antes de guardar vas a ver todo lo leído para corregirlo."),
+      el("button",{class:"btn big",onclick:()=>inp.click()},"Elegir foto, captura o archivo")),
+    el("div",{class:"card small"},el("b",{},"Qué lee bien: "),"capturas de pantalla, texto impreso, PDF con texto, Excel, CSV, Word (.docx) y el código de barras del dorso del DNI.",el("br"),el("b",{},"Qué lee mal: "),"letra a mano, fotos borrosas, torcidas, con sombras o reflejos, y carnets con sellos encima del texto. Si algo no se lee, queda en blanco para que lo completes."),
+    estado,barra,avisos,inp);
+  abrirOverlay("Cargar desde archivo",c); }
+function pantallaRevision(personas,avisos,archivosImg){
+  const vistas=[]; let guardarFoto=false;
+  const nombresVac=GRILLA.map(g=>g[0]);
+  const cards=personas.map((P,pi)=>{ const dup=P.campos.dni&&S.pacientes.find(x=>x.dni===P.campos.dni); const campoEls={}; P.accion=dup?"sumar":"nuevo";
+    const grid=el("div",{class:"form",style:"display:grid;grid-template-columns:1fr;gap:8px"},CAMPOS_PAC.map(([k,t])=>{ let inp; if(k==="sexo") inp=el("select",{},["","F","M","X"].map(x=>el("option",{value:x,selected:(P.campos.sexo||"")===x},x||"—"))); else inp=el("input",{value:k==="nac"&&P.campos.nac?fmt(P.campos.nac):(P.campos[k]||""),placeholder:k==="nac"?"dd/mm/aaaa":"",inputmode:(k==="dni"||k==="telefono")?"numeric":"text"});
+      const falta=!(P.campos[k]); const dudoso=P.dudas.has(k); if(falta||dudoso) inp.style.outline="2px solid var(--warn)"; campoEls[k]=inp; return el("label",{class:(k==="domicilio"||k==="nac")?"full":"",style:(k==="domicilio"?"grid-column:1/3":"")},t,inp,falta?el("span",{class:"small",style:"color:var(--warn)"},"no se leyó: completá ahora o después"):dudoso?el("span",{class:"small",style:"color:var(--warn)"},"revisá que esté bien leído"):null); }));
+    const filas=el("div",{style:"display:flex;flex-direction:column;gap:8px"}); const vs=[];
+    const nuevaFila=v=>{ const r={vac:v.vac||"",dosis:v.dosis||"",fecha:v.fecha||"",lote:v.lote||"",vacunador:v.vacunador||"",duda:v.duda||[],raw:v.raw||""}; vs.push(r);
+      const vSel=el("select",{"aria-label":"Vacuna"},el("option",{value:""},"Elegí la vacuna…"),nombresVac.map(n=>el("option",{value:n,selected:n===r.vac},n)));
+      const dSel=el("select",{"aria-label":"Dosis"}); const fillD=()=>{ const g=GRILLA.find(x=>x[0]===vSel.value); const ops=g?g[3].map(x=>x[0]):[]; if(r.dosis&&!ops.some(o=>norm(o)===norm(r.dosis))){ const k=claveDosis(r.dosis); const m=ops.find(o=>claveDosis(o)===k&&k); if(m) r.dosis=m; } dSel.replaceChildren(el("option",{value:""},"Que la app la elija"),...ops.map(o=>el("option",{value:o,selected:norm(o)===norm(r.dosis)},o))); r.dosis=dSel.value; };
+      fillD(); vSel.addEventListener("change",()=>{ r.vac=vSel.value; r.dosis=""; fillD(); }); dSel.addEventListener("change",()=>{ r.dosis=dSel.value; });
+      const fIn=el("input",{value:r.fecha?fmt(r.fecha):"",placeholder:"dd/mm/aaaa","aria-label":"Fecha",inputmode:"numeric",style:"flex:1.5;min-width:0",oninput:e=>{ r.fecha=fechaDesde(e.target.value)||""; }}); const lIn=el("input",{value:r.lote,placeholder:"Lote","aria-label":"Lote",style:"flex:1;min-width:0",oninput:e=>{ r.lote=e.target.value.trim().toUpperCase(); }});
+      const vIn=el("input",{value:r.vacunador,placeholder:"Quién la aplicó","aria-label":"Vacunador/a",oninput:e=>{ r.vacunador=e.target.value.trim(); }}); const dudas=[...r.duda]; if(!r.vac) dudas.unshift("elegí la vacuna"); if(!r.fecha) dudas.unshift("falta la fecha");
+      const fila=el("div",{class:"card",style:"padding:8px;display:flex;flex-direction:column;gap:6px"+(dudas.length?";outline:2px solid var(--warn)":"")},vSel,dSel,el("div",{style:"display:flex;gap:6px"},fIn,lIn,el("button",{type:"button",class:"btn ghost sm","aria-label":"Quitar",onclick:()=>{ vs.splice(vs.indexOf(r),1); fila.remove(); }},"✕")),vIn,
+        dudas.length?el("div",{class:"small",style:"color:var(--warn)"},"Revisá: "+dudas.join(", ")+"."):null,r.raw?el("div",{class:"small muted"},"Leído: «"+r.raw.slice(0,90)+"»"):null); filas.append(fila); };
+    P.vacunas.forEach(nuevaFila);
+    const sel=el("select",{"aria-label":"Qué hacer con esta persona"},dup?[["sumar","Ya está en la app ("+nombreCompleto(dup)+"): sumarle estas vacunas y completar sus datos vacíos"],["nuevo","Crear una persona nueva igual"],["no","No cargar"]].map(([v,t])=>el("option",{value:v},t)):[["nuevo","Crear paciente nuevo"],["no","No cargar"]].map(([v,t])=>el("option",{value:v},t)));
+    sel.addEventListener("change",()=>{ P.accion=sel.value; });
+    vistas.push({P,campoEls,vs});
+    return el("div",{class:"card",style:"display:flex;flex-direction:column;gap:10px"},el("h3",{},"Persona "+(pi+1)+(P.fuentes.length?" · "+P.fuentes.join(", "):"")),dup?el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},"Ese DNI ya está cargado: "+nombreCompleto(dup)+"."):null,
+      el("label",{},"Qué hacer",sel),grid,el("b",{},"Vacunas leídas ("+P.vacunas.length+")"),filas,el("button",{type:"button",class:"btn ghost sm",onclick:()=>nuevaFila({})},"➕ Agregar otra vacuna"),
+      (P.sueltas&&P.sueltas.length)?el("details",{class:"small"},el("summary",{},"Líneas con vacuna pero sin fecha ("+P.sueltas.length+")"),P.sueltas.slice(0,15).map(t=>el("div",{class:"muted"},t))):null); });
+  const fotoCk=archivosImg.length?el("label",{class:"check"},el("input",{type:"checkbox",onchange:e=>{ guardarFoto=e.target.checked; }}),"Guardar también la foto o archivo en la ficha (queda solo en este celular)"):null;
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"},
+    el("button",{class:"btn",onclick:()=>confirmarCarga(vistas,guardarFoto?archivosImg:[])},"✓ Confirmar todo y guardar"),
+    el("div",{class:"note",style:"background:var(--accent-soft);color:var(--accent)"},"Revisá lo que leí. Lo marcado en amarillo es dudoso o falta. Podés guardar igual: el paciente queda en «Completar después»."),
+    ...avisos.map(t=>el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},t)),...cards,fotoCk,
+    el("div",{class:"toolbar"},el("button",{class:"btn",onclick:()=>confirmarCarga(vistas,guardarFoto?archivosImg:[])},"✓ Confirmar y guardar"),el("button",{class:"btn ghost",onclick:cerrarOverlay},"Cancelar")));
+  abrirOverlay("Revisar lo leído",c); }
+async function confirmarCarga(vistas,fotos){
+  let nuevos=0,act=0,vac=0; const sinRegla=[]; const guardados=[];
+  for(const {P,campoEls,vs} of vistas){ if(P.accion==="no") continue; const f={}; CAMPOS_PAC.forEach(([k])=>{ f[k]=(campoEls[k].value||"").trim(); }); f.nac=fechaDesde(f.nac)||""; f.apellido=f.apellido.toUpperCase(); f.dni=f.dni.replace(/\D/g,"");
+    if(!f.dni&&!f.apellido&&!f.nombre){ sinRegla.push("Una persona sin nombre ni DNI no se cargó."); continue; }
+    let p=P.accion==="sumar"&&f.dni?S.pacientes.find(x=>x.dni===f.dni):null;
+    if(!p){ p={id:uid(),aplicadas:{},historial:[],embarazada:false,grupos:[],riesgos:[],tipoPac:"area",docente:false,tipodoc:"DNI",cargaRapida:iso(hoy)}; S.pacientes.push(p); nuevos++; } else act++;
+    ["apellido","nombre","dni","nac","sexo","domicilio","telefono"].forEach(k=>{ if(f[k]&&!p[k]) p[k]=f[k]; });
+    vs.forEach(r=>{ if(!r.vac||!r.fecha){ sinRegla.push((r.vac||"vacuna sin nombre")+" sin "+(r.vac?"fecha":"elegir")+" (no se cargó)"); return; } const em=p.nac?edadMeses(p.nac,parseISO(r.fecha)):null; const rule=reglaExterna(p,r.vac,"",r.dosis,"",em,r.fecha); if(!rule){ sinRegla.push(r.vac+" "+fmt(r.fecha)+": no encontré la dosis"); return; }
+      p.historial=p.historial||[]; if(p.historial.some(h=>h.fecha===r.fecha&&(h.dosis===rule.id||mismaVacuna(h.dosis,rule.id)))) return;
+      p.historial.push({rid:uid(),dosis:rule.id,fecha:r.fecha,lote:r.lote||"",vacunador:r.vacunador||"",lugar:"",establecimiento:S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos",condicion:condSugerida(p,rule),oportuna:true,obs:"Cargado desde foto/archivo; revisar",esavi:false}); recalcular(p,rule.id); vac++; });
+    guardados.push(p); }
+  if(fotos.length&&guardados.length&&typeof guardarAdjunto==="function"){ for(const f of fotos){ try{ await guardarAdjunto(f,"","","Cargado desde foto/archivo",{pacienteId:guardados[0].id}); }catch(e){} } }
+  save(); const falt=guardados.filter(p=>p.cargaRapida).map(p=>({p,f:faltantesPaciente(p)})).filter(x=>x.f.length);
+  const c=el("div",{class:"card",style:"gap:10px"},el("h3",{},"✓ Listo"),el("p",{},nuevos+" paciente(s) nuevo(s), "+act+" actualizado(s), "+vac+" vacuna(s) cargada(s)."),
+    sinRegla.length?el("div",{class:"note",style:"background:var(--warn-soft);color:var(--warn)"},sinRegla.map(t=>el("div",{},t))):null,
+    falt.length?el("div",{class:"note",style:"background:var(--accent-soft);color:var(--accent)"},el("b",{},"Quedan en «Completar después»: "),falt.map(x=>el("div",{},nombreCompleto(x.p)+" · falta: "+x.f.join(", ")))):null,
+    el("p",{class:"small muted"},"Acordate de cargar también lo aplicado en el sistema oficial."),
+    el("div",{class:"toolbar"},guardados[0]?el("button",{class:"btn",onclick:()=>{ cerrarOverlay(); abrirPaciente(guardados[0].id); }},"Abrir la ficha"):null,el("button",{class:"btn ghost",onclick:()=>{ cerrarOverlay(); render(); }},"Cerrar")));
+  abrirOverlay("Carga lista",c); }
+function panelCompletar(){ const l=S.pacientes.filter(p=>p.cargaRapida&&faltantesPaciente(p).length); if(!l.length) return null;
+  return el("div",{class:"card"},el("h3",{style:"margin:0 0 6px"},"📝 Completar después ("+l.length+")"),el("div",{class:"list"},l.slice(0,8).map(p=>el("button",{class:"row",onclick:()=>editarPaciente(p.id)},el("div",{class:"main"},el("div",{class:"name"},nombreCompleto(p).trim()||("DNI "+p.dni)),el("div",{class:"small muted"},"Falta: "+faltantesPaciente(p).join(", ")))))),l.length>8?el("p",{class:"small muted"},"y "+(l.length-8)+" más en Pacientes."):null); }
+
 /* ===================== GUÍA DE VACUNAS (resumen del Manual de Vacunación Salta 2025) ===================== */
 // g: nombre de la fila en la grilla (GRILLA[0]) para abrir la guía desde "Vacunar".
 const GUIA=[

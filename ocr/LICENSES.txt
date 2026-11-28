@@ -1,0 +1,4 @@
+Archivos de lectura de imágenes y códigos de barras que la app usa en el celular (no envían nada a internet):
+- tesseract.min.js, worker.min.js, tesseract-core-*.wasm.js: Tesseract.js 5.1.1 y tesseract.js-core 5.1.1 (Apache License 2.0), https://github.com/naptha/tesseract.js
+- lang/spa.traineddata.gz: datos de idioma español de Tesseract (tessdata_best, Apache License 2.0), https://github.com/tesseract-ocr/tessdata_best
+- zxing.min.js: @zxing/library 0.21.3 (Apache License 2.0), https://github.com/zxing-js/library
