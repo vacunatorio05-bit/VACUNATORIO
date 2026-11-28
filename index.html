@@ -740,8 +740,7 @@ function editarPaciente(id, base){
     el("label",{},"Tipo de documento",el("select",{id:"p-tipodoc"},["DNI","Pasaporte","Cédula extranjera","Sin documento"].map(t=>el("option",{value:t,selected:(p.tipodoc||"DNI")===t},t)))),
     el("label",{},"Sexo",el("select",{id:"p-sexo"},...[["","—"],["F","Femenino"],["M","Masculino"],["X","X / otro"]].map(([k,t])=>el("option",{value:k,selected:p.sexo===k},t)))),
     campo("telefono","Teléfono",{inputmode:"tel"}),
-    campo("domicilio","Domicilio",{}),
-    campo("barrio","Barrio",{}),
+    el("label",{class:"full"},"Domicilio y barrio",el("input",{id:"p-domicilio",value:[p.domicilio,(p.barrio&&!String(p.domicilio||"").toLowerCase().includes(String(p.barrio).toLowerCase()))?"B° "+p.barrio:""].filter(Boolean).join(", "),placeholder:"Calle, número y barrio. Ej.: Pasaje La Tablada 167, B° Villa Belgrano",autocomplete:"off"})),
     campo("tutor","Madre, padre o tutor",{}),
     campo("curso","Curso / grado",{placeholder:"Ej.: 1° grado A"}),
     el("label",{},"¿Cómo se verificaron sus vacunas?",el("select",{id:"p-verif"},VERIF.map(x=>el("option",{value:x,selected:(p.verif||"")===x},x||"— sin revisar —")))),
@@ -781,7 +780,7 @@ function editarPaciente(id, base){
   form.addEventListener("submit",e=>{
     e.preventDefault();
     const nac=fechaDesde(fechaIn.value); if(!nac||nac>iso(hoy)){ toast("Revisá la fecha de nacimiento (dd/mm/aaaa)"); fechaIn.focus(); return; }
-    ["apellido","nombre","tipodoc","dni","sexo","telefono","domicilio","barrio","tutor","escuela","curso","verif"].forEach(k=>p[k]=form.querySelector("#p-"+k).value.trim()); p.tipoPac=tipoSel.value; p.docente=p.tipoPac==="docente"||p.tipoPac==="personal"; p.tipoOtro=p.tipoPac==="otro"?espIn.value.trim():""; if(!["alumno","docente","personal"].includes(p.tipoPac)) p.escuela=p.escuela||"";
+    ["apellido","nombre","tipodoc","dni","sexo","telefono","domicilio","tutor","escuela","curso","verif"].forEach(k=>p[k]=form.querySelector("#p-"+k).value.trim()); p.barrio=""; p.tipoPac=tipoSel.value; p.docente=p.tipoPac==="docente"||p.tipoPac==="personal"; p.tipoOtro=p.tipoPac==="otro"?espIn.value.trim():""; if(!["alumno","docente","personal"].includes(p.tipoPac)) p.escuela=p.escuela||"";
     p.apellido=p.apellido.toUpperCase(); p.nac=nac;
     p.embarazada=form.querySelector("#p-embarazada").checked;
     p.grupos=[...form.querySelectorAll(".p-grupo:checked")].map(x=>x.value);
@@ -1149,6 +1148,29 @@ function dibujarCarnetPlantilla(doc,p,img1,img2,C){
     doc.setFont("helvetica","normal"); doc.setFontSize(5); doc.setTextColor(0); const t=doc.splitTextToSize((r.vac+" "+(r.dosis||"")).trim(),xs.dosis[1]-xs.dosis[0]-3).slice(0,3); doc.text(t,xs.dosis[0]+1.5,(a+b)/2-(t.length-1)*2.4+1.4);
     celda(r,xs,a,b,false); }));
 }
+
+/* ===================== CONSTANCIA DE VISITA (PDF con logo) ===================== */
+function dibujarConstanciaVisita(doc,v,opt){
+  const W=210; let y=42; const est=S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos"; marcaDeAgua(doc,W,297,120);
+  doc.setFillColor(0,91,159); doc.rect(0,0,W,12,"F"); doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("Constancia de visita",14,8);
+  doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.text(est,W-14,8,{align:"right"});
+  if(logoActual()){ try{ doc.addImage(logoActual(),/^data:image\/jpe?g/i.test(logoActual())?"JPEG":"PNG",W-34,15,20,20); }catch(e){} }
+  const tipo=(TIPOS_VIS.find(t=>t[0]===(v.tipo||"vacunacion"))||[])[1]||"Visita"; const res=(RESULTADOS.find(r=>r[0]===v.resultado)||[])[1]||v.resultado||"";
+  doc.setTextColor(20); doc.setFont("helvetica","normal"); doc.setFontSize(10.5);
+  const parr="Se deja constancia de que el día "+fmt(v.fecha)+(v.hora?" a las "+v.hora+" hs":"")+", personal del "+est+" realizó una visita de tipo «"+tipo+"»"+(v.direccion?" en "+v.direccion:"")+(v.personas?", a: "+v.personas:"")+".";
+  doc.splitTextToSize(parr,175).forEach(l=>{ doc.text(l,14,y); y+=6; }); y+=4;
+  const fila=(et,val)=>{ if(!val) return; doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(et,14,y); doc.setFont("helvetica","normal"); const l=doc.splitTextToSize(String(val),135); doc.text(l,58,y); y+=Math.max(1,l.length)*5.2+2; };
+  fila("Tipo de visita",tipo); fila("Situación / enfermedad",v.detalle); fila("Resultado",res); fila("Personas visitadas",v.personas); fila("DNI",v.dni); fila("Vacunas aplicadas",v.vacunas); fila("Fecha de notificación",v.notificacion?fmt(v.notificacion):"");
+  fila("Dirección",v.direccion); if(v.lat!=null) fila("Ubicación (GPS)",v.lat+", "+v.lng); fila("Observaciones",v.obs);
+  y=Math.max(y+24,236); if(y>262){ doc.addPage(); marcaDeAgua(doc,W,297,120); y=60; }
+  doc.setDrawColor(40); doc.line(20,y,90,y); doc.line(120,y,190,y); doc.setFontSize(8.5); doc.setFont("helvetica","normal");
+  doc.text("Firma y sello del vacunador/a",55,y+5,{align:"center"}); doc.text("Sello del Centro de Salud N° 41",155,y+5,{align:"center"});
+  const vn=v.vacunador||S.ajustes.vacunador||""; if(vn) doc.text(vn+(S.ajustes.matricula?" · Mat./Legajo "+S.ajustes.matricula:""),55,y+10,{align:"center"});
+  doc.setFontSize(7); doc.setTextColor(110); doc.text("Emitida el "+fmt(iso(hoy))+" a partir de los registros del vacunatorio.",14,282); }
+async function constanciaVisitaPDF(v){
+  if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return; }
+  const doc=new window.jspdf.jsPDF({unit:"mm",format:"a4"}); dibujarConstanciaVisita(doc,v);
+  return guardarArchivo("Constancia_visita_"+(v.fecha||iso(hoy))+"_"+slug((v.personas||v.direccion||"visita").slice(0,30))+".pdf",doc.output("blob"),"application/pdf"); }
 async function carnetPDF(p){
   if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return; }
   const nombre="Carnet_"+slug(p.apellido||"paciente")+"_"+(p.dni||"")+"_"+iso(hoy)+".pdf";
@@ -2053,6 +2075,7 @@ function nuevaVisita(x, paciente){
     el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Guardar visita"),
       el("button",{class:"btn ghost",type:"button",onclick:()=>{ const p=pacSel(); if(!p){ toast("Elegí primero el paciente del padrón (o cargalo en Pacientes)"); pacIn.focus(); return; } guardarVis();
         vacunarVarias(p,{lugar:"Visita domiciliaria",volver:()=>nuevaVisita(vis),alGuardar:nombres=>{ vis.vacunas=[vis.vacunas,...nombres].filter(Boolean).join(", "); vis.resultado="vacunado"; if(!vis.personas.includes(nombreCompleto(p))) vis.personas=[vis.personas,nombreCompleto(p)].filter(Boolean).join("; "); save(); nuevaVisita(vis); }}); }},"💉 Vacunar en la visita"),
+      el("button",{class:"btn ghost",type:"button",onclick:()=>{ leerForm(); constanciaVisitaPDF(vis); }},"📄 Constancia de visita (PDF)"),
       x?el("button",{class:"btn danger",type:"button",onclick:()=>{ S.visitas=S.visitas.filter(y=>y.id!==x.id); save(); cerrarOverlay(); toast("Visita borrada"); }},"Borrar"):null,
       vis.lat!=null&&x?el("a",{class:"btn ghost",href:"https://www.google.com/maps/dir/?api=1&destination="+vis.lat+","+vis.lng,target:"_blank",rel:"noopener"},"Cómo llegar"):null));
   form.addEventListener("submit",e=>{ e.preventDefault(); guardarVis();
@@ -3071,7 +3094,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="1643c22287";
+window.APP_VER="5962630589";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
