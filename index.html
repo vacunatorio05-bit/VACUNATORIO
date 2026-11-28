@@ -254,6 +254,9 @@ img#logo-box{width:52px!important;height:52px!important;border-radius:14px!impor
 .mic{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:1px solid var(--line);background:var(--card,#fff);border-radius:999px;width:34px;height:34px;cursor:pointer;font-size:16px;padding:0}
 .vozwrap>textarea+.mic{top:8px;transform:none}
 .mic.on{background:#b42318;color:#fff}
+.hscroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 10px;-webkit-overflow-scrolling:touch}
+.hcard{flex:0 0 82%;max-width:320px;scroll-snap-align:start;display:flex;flex-direction:column;gap:8px;margin:0}
+.pill{display:inline-block;align-self:flex-start;padding:6px 12px;border-radius:999px;font-weight:800;font-size:.9rem}
 </style>
 
 <header>
@@ -569,6 +572,7 @@ function vPendientes(v){
     tile("xls","linear-gradient(135deg,#1fa356,#0e7a37)","Exportar Excel",exportarTodo),
     tileA("ext","linear-gradient(135deg,#334a66,#1d2f45)","SISA NomiVac",ENLACES_FIJOS[0][1]),
     tileA("ext","linear-gradient(135deg,#0b8fb0,#086f8a)","Acuario",ENLACES_FIJOS[1][1]),camIn));
+  v.append(panelCohortes(),panelCampanias());
   { const qi=el("input",{type:"search",placeholder:"¿Qué le toca a un nene de 5 años?",enterkeyhint:"search",style:"flex:1;min-height:46px"});
     const fq=el("form",{class:"toolbar",style:"flex-wrap:nowrap"},qi,el("button",{class:"btn",type:"submit"},"Preguntar"));
     fq.addEventListener("submit",e=>{ e.preventDefault(); abrirAsistente(qi.value.trim()); });
@@ -2010,6 +2014,47 @@ function importarLibroCompleto(hojas,nombreArchivo){
   return res;
 }
 
+
+/* ===================== INICIO: COHORTES Y CAMPAÑAS ===================== */
+// Cohortes del año: nacidos (año - edad). 5 y 11 = esquema del calendario; 6 y 12 = recupero de lo que no se aplicó el año anterior.
+const COHORTES=[[5,5,"5 años · ingreso escolar",false],[11,11,"11 años",false],[6,5,"6 años · recupero del ingreso",true],[12,11,"12 años · recupero de los 11",true]];
+function verListaPacientes(titulo,lista,sub,nota,detalle){
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"},el("p",{class:"muted"},sub),nota?el("div",{class:"note"},nota):null);
+  if(!lista.length) c.append(el("div",{class:"card"},el("p",{},"No hay pacientes cargados en este grupo.")));
+  else {
+    c.append(el("div",{class:"toolbar"},el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>exportarFilas(lista.map(p=>({Apellido:p.apellido,Nombre:p.nombre,DNI:p.dni,"Fecha nac.":fmt(p.nac),Domicilio:p.domicilio,Barrio:p.barrio,Teléfono:p.telefono,Escuela:p.escuela,"Le falta":detalle(p)})),slug(titulo)+"_"+iso(hoy))},"Descargar lista en Excel")));
+    c.append(el("div",{class:"list"},lista.slice(0,300).map(p=>el("button",{class:"row",style:"min-height:56px",onclick:()=>abrirPaciente(p.id)},el("div",{class:"main"},el("div",{class:"name"},nombreCompleto(p)),el("div",{class:"small muted"},[p.dni&&"DNI "+p.dni,p.nac&&edadTexto(edadMeses(p.nac)),p.escuela].filter(Boolean).join(" · ")),el("div",{class:"small"},detalle(p)||"Al día"))))));
+    if(lista.length>300) c.append(el("p",{class:"small muted"},"Se muestran 300 de "+lista.length+". El Excel trae todos."));
+  }
+  abrirOverlay(titulo,c);
+}
+function panelCohortes(){
+  const Y=hoy.getFullYear(); const reales=S.pacientes.filter(p=>!p.ejemplo&&!p.docente); const base=reales.length?reales:S.pacientes.filter(p=>!p.docente);
+  const sec=el("section",{"aria-label":"Cohortes "+Y},el("h3",{style:"margin:6px 0"},"Cohortes "+Y),el("div",{class:"hscroll"},COHORTES.map(([edad,tipo,tit,recup])=>{
+    const nac=Y-edad; const g=base.filter(p=>anioNac(p)===nac); const falta=p=>faltanCampania(p,tipo); const con=g.filter(p=>falta(p).length);
+    const nombres=CAL.filter(x=>CAMP[tipo].includes(x.id)).map(x=>x.vac.split(" (")[0]);
+    const det=p=>falta(p).map(x=>x.vac.split(" (")[0]+" "+x.dosis.split(" (")[0]).join(", ");
+    return el("div",{class:"hcard card"},el("div",{class:"small muted"},"Nacidos en "+nac),el("b",{style:"font-size:1.05rem"},tit),
+      el("div",{style:"font-size:1.8rem;font-weight:800;line-height:1.1;color:"+(con.length?"var(--bad)":"var(--ok,#1f7a3a)")},con.length,el("span",{class:"small muted",style:"font-weight:600;font-size:.8rem"}," de "+g.length+" con vacunas faltantes")),
+      el("div",{class:"small muted"},nombres.join(", ")+(tipo===11?". Fiebre amarilla solo en zona de riesgo.":"")),
+      el("button",{class:"btn",style:"min-height:48px",onclick:()=>verListaPacientes(tit+" · nacidos "+nac,[...con,...g.filter(p=>!con.includes(p))],"Primero los que tienen vacunas faltantes.",recup?"Recupero: son los chicos que cumplieron "+(edad-1)+" años el año pasado y no completaron el esquema de ese año.":"",det)},"Ver pacientes")); })));
+  return sec; }
+const CAMPANIAS=[
+ {t:"Gripe "+hoy.getFullYear(),color:"#f5b800",txt:"#2a2200",desde:[3,11],aplica:(p,r)=>[...r.atrasada,...r.pendiente].some(x=>x.familia==="gripe"),nota:"Quienes tienen indicada la antigripal y no la recibieron este año.",sub:"Desde el 11/03."},
+ {t:"Dengue 15 a 39 años",color:"#e8731a",txt:"#fff",aplica:(p)=>{ const m=p.nac?edadMeses(p.nac):null; const ap=p.aplicadas||{}; return m!=null&&m>=180&&m<=479&&!ap.dengue; },nota:"Se cuentan por edad. Según el manual 2025 solo se aplica en los departamentos priorizados (no figura Capital): revisá la circular 2026.",sub:"Zona priorizada."},
+ {t:"Hepatitis A · brote Embarcación",color:"#c62828",txt:"#fff",aplica:(p)=>{ const y=anioNac(p); const ap=p.aplicadas||{}; return y!=null&&y>=1993&&y<=2004&&!ap.hepa&&!ap.hepa_r1; },nota:"Nacidos 1993 a 2004 sin dosis cargada. Esto NO está en el calendario ni en el manual 2025 (la hepatitis A universal es para nacidos desde 2004). Falta la circular 2026.",sub:"Nacidos 1993-2004."},
+ {t:"Fiebre amarilla",color:"#c62828",txt:"#fff",aplica:(p)=>{ const m=p.nac?edadMeses(p.nac):null; const ap=p.aplicadas||{}; return m!=null&&m>=9&&m<720&&!ap.fa1; },nota:"Sin dosis cargada, de 9 meses a 59 años. El manual 2025 la indica en zonas de riesgo y para viajeros.",sub:"Zona de riesgo."},
+ {t:"Puesta al día",color:"#1565c0",txt:"#fff",desde:[11,23],hasta:[12,7],aplica:(p,r)=>r.atrasada.length>0,nota:"Todos los que tienen alguna vacuna atrasada.",sub:"Del 23/11 al 07/12."}];
+function estadoCampania(c){ const Y=hoy.getFullYear(); const d=c.desde?new Date(Y,c.desde[0]-1,c.desde[1]):null, h=c.hasta?new Date(Y,c.hasta[0]-1,c.hasta[1]):null;
+  if(d&&hoy<d) return ["Empieza el "+fmt(iso(d)),false]; if(h&&hoy>h) return ["Terminó el "+fmt(iso(h)),false]; if(h){ const n=Math.round((h-hoy)/86400000); return ["Activa · "+(n===0?"termina hoy":"quedan "+n+" días"),true]; } return ["Activa",true]; }
+function panelCampanias(){
+  const base=S.pacientes.filter(p=>!p.ejemplo&&!p.docente); const lista=base.length?base:S.pacientes.filter(p=>!p.docente); const memo=new Map(); const R=p=>{ let x=memo.get(p); if(!x){ x=p.nac?resumen(p):{atrasada:[],pendiente:[],proxima:[],faltan:0}; memo.set(p,x); } return x; };
+  return el("section",{"aria-label":"Campañas activas"},el("h3",{style:"margin:6px 0"},"Campañas activas"),el("div",{class:"hscroll"},CAMPANIAS.map(c=>{ const [est,act]=estadoCampania(c); const ap=lista.filter(p=>{ try{ return c.aplica(p,R(p)); }catch(e){ return false; } });
+    return el("div",{class:"hcard card",style:"opacity:"+(act?1:.7)},el("span",{class:"pill",style:"background:"+c.color+";color:"+c.txt},c.t),el("div",{class:"small muted"},est+" · "+c.sub),
+      el("div",{style:"font-size:1.8rem;font-weight:800;line-height:1.1"},ap.length,el("span",{class:"small muted",style:"font-weight:600;font-size:.8rem"}," pacientes que aplican")),
+      el("button",{class:"btn",style:"min-height:48px",onclick:()=>verListaPacientes(c.t,ap,est+" · "+c.sub,c.nota,p=>c.t.startsWith("Hepatitis")?"Hepatitis A: sin dosis":c.t.startsWith("Gripe")?"Antigripal":c.t.startsWith("Dengue")?"Dengue 1ª dosis":c.t.startsWith("Fiebre")?"Fiebre amarilla":R(p).atrasada.map(x=>x.vac).filter((v,i,a)=>a.indexOf(v)===i).join(", "))},"Ver pacientes que aplican")); })));
+}
+
 /* ===================== PESTAÑA: ESCUELAS ===================== */
 const VERIF=["","Presentó carnet","No tiene carnet","Revisado en SISA / NomiVac","Revisado en Acuario","Revisado en SAFESA"];
 const CAMP={5:["tv2","dtp_esc","ipv_esc","varic2"],11:["dtpa11","vph","mening11"]};
@@ -2602,7 +2647,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="50764a3bb1";
+window.APP_VER="952e2eaa92";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
