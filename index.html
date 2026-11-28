@@ -325,7 +325,7 @@ const CAL = [
   {id:"tv1", vac:"Triple viral (SRP)", dosis:"1ª", edad:12, minDias:365, nacidoDesde:"1965-01-01", vivo:true, grupo:"12 meses"},
   {id:"varic1", vac:"Varicela", dosis:"1ª", edad:15, minDias:365, nacidoDesde:"2013-10-01", vivo:true, grupo:"15 meses"},
   {id:"mening_ref", vac:"Meningococo ACWY", dosis:"Refuerzo", edad:15, max:131, minDias:365, tras:[["mening2",56],["mening1",56]], requiere:"mening1", nacidoDesde:"2016-10-01", omitir:(p,ap)=>inicio(p,ap,"mening1")>=24, grupo:"15 meses"},
-  {id:"quin_ref", vac:"Quíntuple (pentavalente)", dosis:"Refuerzo (15 a 18 meses)", edad:15, max:59, minDias:456, tras:[["quin3",182]], grupo:"15 a 18 meses"},
+  {id:"quin_ref", vac:"Quíntuple (pentavalente)", dosis:"Refuerzo (15 a 18 meses)", edad:15, vent:3, max:59, minDias:456, tras:[["quin3",182]], grupo:"15 a 18 meses"},
   {id:"fa1", vac:"Fiebre amarilla", dosis:"1ª (o única en adultos hasta 59 años)", edad:18, max:719, minDias:274, zona:"fa", vivo:true, grupo:"18 meses"},
   {id:"tv2", vac:"Triple viral (SRP)", dosis:"2ª", edad:60, cohorte:5, tras:[["tv1",28]], nacidoDesde:"1965-01-01", vivo:true, grupo:"Ingreso escolar (año en que cumple 5)"},
   {id:"dtp_esc", vac:"Triple bacteriana celular (DTP)", dosis:"Refuerzo", edad:60, cohorte:5, max:83, grupo:"Ingreso escolar (año en que cumple 5)"},
@@ -492,7 +492,9 @@ function estadoDosis(p,r){
   if(r.max!=null && m>r.max) return {e:"fuera"};
   if(due>hoy){ const dias=(due-hoy)/86400000; return {e: dias<=30?"proxima":"futura", due:iso(due)}; }
   if(r.cond) return r.tras? {e:"pendiente",due:iso(due)} : {e:"pendiente"};
-  return {e: addMonths(due,1)<=hoy ? "atrasada":"pendiente", due:iso(due)};
+  // Oportuna (regular) hasta el final de su ventana; después es atrasada. Dosis por cohorte (ingreso escolar, 11 años): todo el año en que cumple la edad. Resto: 1 mes de margen (o r.vent meses).
+  let fin=addMonths(due,r.vent!=null?r.vent:1); if(r.cohorte!=null){ const finAnio=new Date(nacY+r.cohorte+1,0,1); if(finAnio>fin) fin=finAnio; }
+  return {e: fin<=hoy ? "atrasada":"pendiente", due:iso(due)};
 }
 function resumen(p){
   const out={atrasada:[],pendiente:[],proxima:[],ok:0};
@@ -1294,13 +1296,15 @@ function pasoVacuna(p, previo){
   const r0=resumen(p); const sugerida=previo?CAL.find(x=>x.id===previo.dosis):([...r0.atrasada,...r0.pendiente][0]||null);
   const cond=selCondicion("fr-cond",previo?previo.condicion:condSugerida(p,sugerida),p); cond.addEventListener("change",llenarVac);
   let grupos=[]; const gAct=()=>grupos.find(x=>x.g[0]===vacSel.value); const vacLote=()=>{ const x=gAct(); return x?x.chips[0].rule.vac:""; };
-  const vacSel=el("select",{id:"fr-vac",onchange:()=>{ llenarDosis(); llenarLote(); }});
-  const dosisSel=el("select",{id:"fr-dosis",onchange:()=>esq.textContent=grupoDe()});
+  const vacSel=el("select",{id:"fr-vac",onchange:()=>{ llenarDosis(); llenarLote(); ajustarCal(); }});
+  const dosisSel=el("select",{id:"fr-dosis",onchange:()=>{ esq.textContent=grupoDe(); ajustarCal(); }});
   const esq=el("div",{class:"small muted"}); const resumenCond=el("div",{class:"small muted"});
   const lote=el("input",{id:"fr-lote",list:"fr-lotes",autocapitalize:"characters",autocomplete:"off",value:previo?previo.lote:""});
   const lotesDL=el("datalist",{id:"fr-lotes"}); const stockInfo=el("div",{class:"small muted"});
   const fecha=el("input",{id:"fr-fecha",type:"date",max:iso(hoy),value:previo?previo.fecha:iso(hoy),onchange:llenarLote});
   function grupoDe(){ const r=CAL.find(x=>x.id===dosisSel.value)||regla(dosisSel.value); return r?"Esquema: "+(r.grupo||""):""; }
+  function ajustarCal(){ const x=gAct(); const c=x&&x.chips.find(k=>k.rule.id===dosisSel.value); if(!c||c.rule.cond||c.rule.libre||!p.nac||!/^(Regular|Atrasado)/.test(cond.value)) return;
+    const q=c.st==="atrasada"?"Atrasado":(c.st==="pendiente"||c.st==="proxima")?"Regular":null; if(q&&cond.value!==esquemaCalendario(p,q)){ const v=vacSel.value, d=dosisSel.value; cond.value=esquemaCalendario(p,q); llenarVac(); vacSel.value=v; llenarDosis(); dosisSel.value=d; esq.textContent=grupoDe(); } }
   function llenarVac(){ const first=!vacSel.dataset.t; const prev=previo&&first?(GR_DE[previo.dosis]||{g:[""]}).g[0]:vacSel.value; vacSel.dataset.t="1"; grupos=vistaVac(p,cond.value);
     const rel=grupos.filter(x=>x.rel), otras=grupos.filter(x=>!x.rel); const op=x=>el("option",{value:x.g[0]},x.g[0]);
     const kids=[]; if(rel.length) kids.push(el("optgroup",{label:"✔ Le corresponden ("+cond.value+")"},...rel.map(op))); kids.push(el("optgroup",{label:rel.length?"Otras vacunas":"Vacunas"},...otras.map(op)));
@@ -1551,7 +1555,9 @@ function gridVacunas(p,o={}){
     dSel.replaceChildren(el("option",{value:""},"Elegí la dosis…"),...(x?x.chips.map(c=>el("option",{value:c.d,disabled:c.bloqueada},c.d+(c.bloqueada?"  ·  ✓ ya aplicada "+fmt(c.hecha):c.rel?"  ·  le corresponde":c.st==="atrasada"?"  ·  atrasada":""))):[]));
     const prop=libres.find(c=>c.rel)||(libres.length===1?libres[0]:null); if(prop) dSel.value=prop.d;
     const la=x?lotesActivos(x.chips[0].rule.vac,getF()):[]; dl.replaceChildren(...la.map(y=>el("option",{value:y.l.lote}))); lote.value=la[0]?la[0].l.lote:""; dSel.dispatchEvent(new Event("change")); });
-  dSel.addEventListener("change",()=>{ const c=chipAct(); aviso.textContent=(c&&!c.rule.libre&&p.nac)?avisoTemprano(p,c.rule,getF())||"":""; });
+  dSel.addEventListener("change",()=>{ const c=chipAct(); aviso.textContent=(c&&!c.rule.libre&&p.nac)?avisoTemprano(p,c.rule,getF())||"":"";
+    // Si la condición es de calendario, la marca Regular/Atrasado sigue a la dosis elegida (según su edad y el manual)
+    if(c&&!c.rule.cond&&!c.rule.libre&&p.nac&&/^(Regular|Atrasado)/.test(condEl.value)){ const q=c.st==="atrasada"?"Atrasado":(c.st==="pendiente"||c.st==="proxima")?"Regular":null; if(q&&condEl.value!==esquemaCalendario(p,q)){ const keepV=vSel.value, keepD=dSel.value; condEl.value=esquemaCalendario(p,q); pintarVac(); vSel.value=keepV; vSel.dispatchEvent(new Event("change")); dSel.value=keepD; dSel.dispatchEvent(new Event("change")); } } });
   condEl.addEventListener("change",()=>{ pintarVac(); cond.dispatchEvent(new Event("change",{bubbles:true})); });
   function revisar(){ let n=0; const t=items.map(it=>{ const a=(it.rule.libre||!p.nac)?null:avisoTemprano(p,it.rule,getF()); if(a) n++; return a?it.rule.vac+": "+a:null; }).filter(Boolean); avisos.textContent=t.join(" "); return n; }
   const pintar=()=>{ lista.replaceChildren(...items.map((it,i)=>el("span",{class:"chip ex"},GR_DE[it.rule.id]?GR_DE[it.rule.id].g[0]:it.rule.vac," · ",dosisSisa(it.rule)," · ",it.condicion,it.lote?" · lote "+it.lote:""," ",el("button",{type:"button",class:"btn ghost sm","aria-label":"Quitar",onclick:()=>{ items.splice(i,1); pintar(); revisar(); }},"✕")))); revisar(); };
@@ -2120,6 +2126,8 @@ function nuevaVisita(x, paciente){
   const dSel=el("select",{id:"v-dsel"},el("option",{value:""},"Elegí la dosis…"));
   const otraIn=el("input",{id:"v-votra",placeholder:"Nombre de la vacuna",hidden:true,autocomplete:"off"});
   vSel.addEventListener("change",()=>{ const g=GRILLA.find(x=>x[0]===vSel.value); otraIn.hidden=vSel.value!=="__otra"; dSel.replaceChildren(el("option",{value:""},"Elegí la dosis…"),...(g?g[3].map(([d])=>el("option",{value:d},d)):[])); if(g&&g[3].length===1) dSel.value=g[3][0][0]; });
+  dSel.addEventListener("change",()=>{ const p=pacSel(); if(!p||!p.nac||!/^(Regular|Atrasado)/.test(condVis.value)) return; const x=vistaVac(p,condVis.value).find(g=>g.g[0]===vSel.value); const c=x&&x.chips.find(k=>k.d===dSel.value); if(!c||c.rule.cond||c.rule.libre) return;
+    const q=c.st==="atrasada"?"Atrasado":(c.st==="pendiente"||c.st==="proxima")?"Regular":null; if(q&&condVis.value!==esquemaCalendario(p,q)){ const v=vSel.value, d=dSel.value; condVis.value=esquemaCalendario(p,q); llenarVac(); vSel.value=v; vSel.dispatchEvent(new Event("change")); dSel.value=d; } });
   const agregarVac=()=>{ const nombre=vSel.value==="__otra"?otraIn.value.trim():vSel.value; if(!nombre){ toast("Elegí la vacuna"); return; }
     itemsVac.push([nombre,dSel.value,condVis.value].filter(Boolean).join(" · ")); pintarVac2(); vSel.value=""; vSel.dispatchEvent(new Event("change")); otraIn.value=""; };
   pintarVac2();
@@ -3165,7 +3173,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="61fcae8ce2";
+window.APP_VER="8057ddccab";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
