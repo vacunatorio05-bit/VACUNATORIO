@@ -2063,16 +2063,28 @@ async function preguntarGemini(pregunta,op={}){
   const llamarReal=(modelo,web,signal)=>fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(modelo)+":generateContent",{method:"POST",signal,headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
     body:JSON.stringify(Object.assign({systemInstruction:{parts:[{text:(op.sistema||sistema)+(web?"\nPodés buscar en la web fuentes oficiales (Ministerio de Salud de la Nación, Ministerio de Salud de Salta, circulares y alertas vigentes) para lo que no esté en el calendario. Citá la fuente y la fecha si la encontrás.":"")}]},contents:[{role:"user",parts:[{text:pregunta}]}],generationConfig:{temperature:0.2,maxOutputTokens:op.max||1200}},web?{tools:[{google_search:{}}]}:{}))});
   // Prueba el modelo elegido y, si ya no existe, el alias «gemini-flash-latest». Si falla la búsqueda web, reintenta sin ella.
-  let r=null, usado={m:"",web:false}, avisoWeb=""; const modelos=[...new Set([gemModelo(c),GEM_MODELOS[0][0]])]; const quiereWeb=op.web!==undefined?!!op.web:!!c.web;
-  buscar: for(const m of modelos){ for(const web of (quiereWeb?[true,false]:[false])){ r=await llamar(m,web); usado={m,web};
-    if(r.ok){ if(web===false&&quiereWeb) avisoWeb="Esta respuesta salió SIN búsqueda en la web (no hubo cupo o no se pudo)."; if(m!==gemModelo(c)){ const n=gemConfig(); n.modelo=m; n.modeloManual=""; gemGuardar(n); } break buscar; }
-    if(r.status===404) break; if(r.status==="cancelado") break buscar; if(r.status==="tiempo"||r.status==="red"){ if(!web||r.status==="red") break buscar; continue; } if(r.status!==400&&r.status!==429) break buscar; if(r.status===429&&!web) break buscar; } }
+  let r=null, usado={m:"",web:false}, avisoWeb="", demanda=false; const elegido=gemModelo(c); const quiereWeb=op.web!==undefined?!!op.web:!!c.web;
+  const modelos=[...new Set([elegido,GEM_MODELOS[0][0],"gemini-2.5-flash-lite","gemini-2.5-flash",GEM_MODELOS[1][0]])]; const limite=Date.now()+100000;
+  const dormir=ms=>new Promise(ok=>setTimeout(ok,window.GEM_TEST_MS?50:ms));
+  const saturado=(st,j)=>st===503||st===500||st===502||st===504||/high demand|overloaded|UNAVAILABLE/i.test(JSON.stringify(j||{}));
+  buscar: for(const m of modelos){ let reint=0;
+    for(const web of (quiereWeb?[true,false]:[false])){
+      if(Date.now()>limite) break buscar;
+      r=await llamar(m,web); usado={m,web};
+      if(r.status===503||r.status===500||r.status===502||r.status===504){ demanda=true; if(reint<1&&!(m!==elegido&&false)){ reint++; await dormir(4000); r=await llamar(m,web); usado={m,web}; } }
+      if(r.ok){ if(web===false&&quiereWeb) avisoWeb="Esta respuesta salió SIN búsqueda en la web (no hubo cupo o no se pudo)."; if(m!==elegido){ avisoWeb=(avisoWeb?avisoWeb+" ":"")+"Respondió el modelo «"+m+"» porque «"+elegido+"» no estaba disponible."; if(!demanda){ const n=gemConfig(); n.modelo=m; n.modeloManual=""; gemGuardar(n); } } break buscar; }
+      if(r.status==="cancelado") break buscar;
+      if(r.status===404) break;
+      if(r.status===503||r.status===500||r.status===502||r.status===504) break;
+      if(r.status==="tiempo"||r.status==="red"){ if(!web||r.status==="red") break buscar; continue; }
+      if(r.status!==400&&r.status!==429) break buscar; if(r.status===429&&!web) break buscar; } }
   if(r.status==="cancelado") throw new Error("Cancelaste la consulta.");
   if(r.status==="tiempo") throw new Error("Gemini tardó más de 40 segundos y corté la consulta. Probá de nuevo, apagá «Buscar en la web» o elegí un modelo más liviano (Flash-Lite). [Modelo: "+usado.m+(usado.web?", con búsqueda web":", sin búsqueda web")+"]");
   if(r.status==="red") throw new Error("No pude conectar con Google. Revisá tu internet y probá de nuevo.");
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ const m=((j.error&&j.error.message)||("Error "+r.status)).replace(/\s+/g," "); const espera=(/retryDelay"?:\s*"?(\d+)/.exec(JSON.stringify(j))||[])[1];
     let q=""; if(r.status===429){ q=/PerMinute|per minute/i.test(m)?"Llegaste al límite POR MINUTO: esperá "+(espera||"1")+" segundos y probá de nuevo.":/PerDay|per day/i.test(m)?"Llegaste al límite del DÍA para este modelo: probá con otro modelo o mañana.":/limit:\s*0/i.test(m)?"Tu proyecto NO tiene cupo gratis para este modelo: probá con «Gemini 2.5 Flash-Lite» o «gemini-flash-latest», o activá la facturación en Google AI Studio.":"Se acabó el cupo por ahora."; }
+    if(saturado(r.status,j)) throw new Error("Google está con mucha demanda en este momento. Probé con otros modelos y ninguno pudo responder: probá de nuevo en unos minutos. [Último modelo: "+usado.m+"]");
     throw new Error((r.status===400||r.status===403?"Gemini rechazó la clave o la consulta. Revisá la clave en Registro.":r.status===404?"No encontré ningún modelo de Gemini que ande con tu clave. En Registro → Consulta con IA escribí el nombre del modelo que te muestra AI Studio.":r.status===429?q:"Gemini dio un error.")+" [Modelo: "+usado.m+(usado.web?", con búsqueda web":", sin búsqueda web")+"] Google dice: "+m.slice(0,220)); }
   op.aviso=avisoWeb;
   const t=(((j.candidates||[])[0]||{}).content||{}).parts; const txt=(t||[]).map(x=>x.text||"").join("").trim(); if(!txt) throw new Error("Gemini no devolvió respuesta. Probá con otra pregunta.");
@@ -2086,7 +2098,7 @@ function abrirGemini(){
   const res=el("div",{class:"card",hidden:true,style:"white-space:pre-wrap"}); const aviso=el("div",{class:"note bad",hidden:true});
   const btn=el("button",{class:"btn",type:"button",style:"min-height:48px",onclick:async()=>{
     const t=q.value.trim(); if(!t) return; const m=datosPersonales(t); aviso.hidden=!m; if(m){ aviso.textContent="No lo envié: "+m+". Reescribilo sin datos de personas (por ejemplo «una nena de 6 años»)."; res.hidden=true; return; }
-    btn.disabled=true; btn.textContent="Consultando… (máximo 40 segundos)"; cancel.hidden=false; res.hidden=false; res.textContent="Consultando a Gemini…";
+    btn.disabled=true; btn.textContent="Consultando… (puede tardar hasta 1 minuto)"; cancel.hidden=false; res.hidden=false; res.textContent="Consultando a Gemini…";
     try{ const op={}; const a=await preguntarGemini(t,op); res.textContent=(op.aviso?"("+op.aviso+")\n\n":"")+a.replace(/\*\*/g,"").replace(/^\s*\*\s/gm,"• "); res.append(el("div",{class:"small muted",style:"margin-top:10px"},"✨ Respuesta de IA (Gemini). Puede equivocarse: confirmá en el Manual de Vacunación 2025.")); }
     catch(e){ res.textContent="⚠ "+((e&&e.message)||"Algo salió mal. Probá de nuevo."); }
     finally{ btn.disabled=false; btn.textContent="Preguntar a Gemini"; cancel.hidden=true; } }},"Preguntar a Gemini");
@@ -2150,7 +2162,7 @@ function consultaAnonima(p){
   c.append(el("div",{class:"note bad"},"Esto es TODO lo que se va a enviar a Google (Gemini). No lleva nombre, DNI, domicilio, teléfono ni fechas exactas: solo la edad, las condiciones de riesgo y a qué edad se aplicó cada vacuna. Podés editarlo antes de enviar."),area);
   if(!g.key){ c.append(el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Primero cargá la clave de Gemini")); abrirOverlay("Consulta sin identificar",c); return; }
   const btn=el("button",{class:"btn",style:"min-height:48px",onclick:async()=>{ const m=datosPersonales(area.value); aviso.hidden=!m; if(m){ aviso.textContent="No lo envié: "+m+". Sacalo del texto."; return; }
-    btn.disabled=true; btn.textContent="Consultando… (máximo 70 segundos)"; cancel.hidden=false; res.hidden=false; res.textContent="Consultando a Gemini…";
+    btn.disabled=true; btn.textContent="Consultando… (puede tardar hasta 1 minuto y medio)"; cancel.hidden=false; res.hidden=false; res.textContent="Consultando a Gemini…";
     try{ const op={max:1500,web:true}; const a=await preguntarGemini("Datos de la persona (sin identificar):\n"+area.value+"\n\nPedido: 1) Según el Calendario Nacional de Argentina y las normas vigentes de Salta, ¿qué vacunas le faltan o están atrasadas y cuáles le corresponden ahora? 2) ¿Hay alguna circular, campaña o alerta vigente (2025-2026) que le aplique y no esté en el manual? 3) Si necesitás un dato más (por ejemplo un intervalo o una fecha) decí cuál. Respondé con una lista corta.",op);
       res.textContent=(op.aviso?"("+op.aviso+")\n\n":"")+a.replace(/\*\*/g,"").replace(/^\s*\*\s/gm,"• "); res.append(el("div",{class:"small muted",style:"margin-top:10px"},"✨ Respuesta de IA con búsqueda en la web. Puede equivocarse: confirmala con el manual y la historia clínica. La decisión es del equipo de salud.")); }
     catch(e){ res.textContent="⚠ "+((e&&e.message)||"Algo salió mal. Probá de nuevo."); } finally{ btn.disabled=false; btn.textContent="Enviar a Gemini"; cancel.hidden=true; } }},"Enviar a Gemini");
@@ -2811,7 +2823,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="9c0180b152";
+window.APP_VER="41e15def84";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
