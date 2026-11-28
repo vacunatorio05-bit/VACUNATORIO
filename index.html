@@ -67,7 +67,7 @@ nav.tabs button[aria-current="true"]{color:var(--accent);font-weight:700}
 .row .main{flex:1;min-width:0}
 .row .name{font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-.chip{font-size:.75rem;padding:2px 8px;border-radius:999px;background:var(--gray-soft);color:var(--ink);white-space:nowrap}
+.chip{font-size:.75rem;padding:2px 8px;border-radius:999px;background:var(--gray-soft);color:var(--ink);white-space:normal;max-width:100%}
 .quick{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
 .thumb{width:64px;height:64px;border-radius:12px;border:1px solid var(--line);background:var(--gray-soft);display:grid;place-items:center;font-weight:800;overflow:hidden;cursor:pointer;padding:0;color:inherit}
 .thumb img{width:100%;height:100%;object-fit:cover}
@@ -133,7 +133,7 @@ h2{font-size:1.4rem;font-weight:800}
 .stat b{color:#fff!important;font-size:2rem}
 .stat.bad{background:linear-gradient(135deg,#e0362c,#b81d14)} .stat.warn{background:linear-gradient(135deg,#f29a1f,#d46f00)} .stat.ok{background:linear-gradient(135deg,#1fa356,#0e7a37)}
 .stat:not(.bad):not(.warn):not(.ok){background:linear-gradient(135deg,var(--hdr1),var(--hdr2))}
-.btn{white-space:nowrap;min-height:46px;border-radius:12px;padding:10px 16px;box-shadow:0 2px 6px rgba(11,95,196,.25);display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+.btn{white-space:normal;text-align:center;max-width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;padding:10px 16px;box-shadow:0 2px 6px rgba(11,95,196,.25);display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 .btn.ghost{box-shadow:none;border-width:2px;background:var(--surface)}
 .btn.danger{box-shadow:none;border-width:2px}
 .btn.sm{min-height:38px;padding:6px 12px}
@@ -257,6 +257,7 @@ img#logo-box{width:52px!important;height:52px!important;border-radius:14px!impor
 .hscroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 10px;-webkit-overflow-scrolling:touch}
 .hcard{flex:0 0 82%;max-width:320px;scroll-snap-align:start;display:flex;flex-direction:column;gap:8px;margin:0}
 .pill{display:inline-block;align-self:flex-start;padding:6px 12px;border-radius:999px;font-weight:800;font-size:.9rem}
+html,body{max-width:100%;overflow-x:hidden}img,video,canvas,table{max-width:100%}.toolbar>*{max-width:100%}
 </style>
 
 <header>
@@ -714,6 +715,7 @@ function abrirPaciente(id){
     el("button",{class:"btn ghost",onclick:()=>nuevaVisita(null,p)},"Registrar visita"),
     el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>revisionPaciente(p)},"🔎 Revisar y cruzar datos"),
     el("button",{class:"btn ghost",onclick:()=>carnetPDF(p)},"📄 Certificado / carnet (compartir)"),
+    el("button",{class:"btn ghost",onclick:()=>constanciaDialogo(p)},"🧾 Constancia de vacunación"),
     p.telefono&&r.faltan? el("a",{class:"btn ghost",href:linkWhatsApp(p,r),target:"_blank",rel:"noopener"},"Avisar por WhatsApp"):null,
     p.lat!=null? el("a",{class:"btn ghost",href:"https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lng,target:"_blank",rel:"noopener"},"Cómo llegar"):null,
     el("button",{class:"btn danger",onclick:()=>confirmarBorrar(p)},"Borrar paciente")));
@@ -977,6 +979,53 @@ function dibujarCarnet(doc,p,opt={}){
   doc.splitTextToSize("Constancia emitida el "+fmt(iso(hoy))+" a partir de los registros del vacunatorio. No reemplaza el carnet oficial ni el registro nominal en NomiVac/SISA."+(S.ajustes.vacunador?" Vacunador/a: "+S.ajustes.vacunador+".":""),180).forEach(l=>{ doc.text(l,14,y); y+=4; });
 }
 const slug=t=>String(t||"").replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g,"_").replace(/^_+|_+$/g,"");
+
+/* ===================== CONSTANCIA DE VACUNACIÓN (para entregar o compartir) ===================== */
+function telWA(p){ let t=String(p.telefono||"").replace(/\D/g,""); if(t.startsWith("0")) t=t.slice(1); if(t.startsWith("54")) t=t.slice(2); if(t.startsWith("9")) t=t.slice(1); return t.replace(/^(\d{3,4})15/,"$1"); }
+function registrosConstancia(p,alc){ let regs=aplicacionesDe(p); if(alc==="hoy") regs=regs.filter(h=>h.fecha===iso(hoy)); return regs; }
+function textoConstancia(p,regs){
+  const l=regs.map(h=>{ const r=regla(h.dosis)||{vac:h.dosis,dosis:""}; return "• "+fmt(h.fecha)+" · "+nombreSisa(r,p,h.fecha)+" · "+dosisSisa(r)+(h.lote?" · lote "+h.lote:""); });
+  return "Constancia de vacunación — "+(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos")+"\n"+((p.nombre||"")+" "+(p.apellido||"")).trim()+(p.dni?" · "+(p.tipodoc||"DNI")+" "+p.dni:"")+"\n\nVacunas aplicadas:\n"+(l.join("\n")||"(ninguna registrada)")+"\n\nGuardá este mensaje o el PDF: sirve como constancia. Traé siempre el carnet y el DNI al vacunatorio."; }
+function dibujarConstancia(doc,p,regs,opt){
+  const W=210; let y=24; const est=S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos";
+  doc.setFillColor(0,91,159); doc.rect(0,0,W,12,"F"); doc.setTextColor(255); doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text("Constancia de vacunación",14,8);
+  doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.text(est,W-14,8,{align:"right"});
+  if(logoActual()){ try{ doc.addImage(logoActual(),"PNG",W-34,15,20,20); }catch(e){} }
+  doc.setTextColor(20); doc.setFontSize(10.5);
+  const nom=((p.apellido||"").toUpperCase()+", "+(p.nombre||"")).trim();
+  const parrafo="Se deja constancia de que "+nom+", "+(p.tipodoc||"DNI")+" N° "+(p.dni||"—")+(p.nac?", nacido/a el "+fmt(p.nac):"")+", recibió en el "+est+" ("+(S.ajustes.lugar||"Vacunatorio")+") las vacunas que se detallan a continuación:";
+  doc.splitTextToSize(parrafo,175).forEach(l=>{ doc.text(l,14,y); y+=6; }); y+=3;
+  const cols=[14,36,96,128,156]; const fila=(arr,b)=>{ if(y>240){ doc.addPage(); y=20; } doc.setFont("helvetica",b?"bold":"normal"); doc.setFontSize(9); arr.forEach((t,i)=>doc.text(doc.splitTextToSize(String(t||"—"),(cols[i+1]||198)-cols[i]-2)[0],cols[i],y)); y+=6.5; doc.setDrawColor(200); doc.line(14,y-4.5,196,y-4.5); };
+  fila(["Fecha","Vacuna","Dosis","Lote","Vacunador/a"],true);
+  regs.forEach(h=>{ const r=regla(h.dosis)||{vac:h.dosis,dosis:""}; fila([fmt(h.fecha),nombreSisa(r,p,h.fecha),dosisSisa(r),h.lote||"",h.vacunador||opt.vacunador||""]); });
+  if(!regs.length) fila(["","Sin vacunas registradas para el período elegido","","",""]);
+  y+=8; doc.setFont("helvetica","normal"); doc.setFontSize(10);
+  doc.splitTextToSize("Se extiende la presente a pedido del/la interesado/a, para ser presentada ante quien corresponda, en Salta, a "+fmt(iso(hoy))+".",175).forEach(l=>{ if(y>262){doc.addPage();y=20;} doc.text(l,14,y); y+=6; });
+  y=Math.max(y+22,236); if(y>262){ doc.addPage(); y=60; }
+  doc.setDrawColor(40); doc.line(20,y,90,y); doc.line(120,y,190,y); doc.setFontSize(8.5);
+  doc.text("Firma y sello del vacunador/a",55,y+5,{align:"center"}); doc.text("Sello del Centro de Salud",155,y+5,{align:"center"});
+  if(opt.vacunador) doc.text(opt.vacunador+(opt.matricula?" · Mat./Legajo "+opt.matricula:""),55,y+10,{align:"center"});
+  doc.setFontSize(7); doc.setTextColor(110);
+  doc.splitTextToSize("Documento emitido por el vacunatorio a partir de sus registros. Las dosis también se cargan en el registro nominal oficial (NomiVac/SISA). Ante cualquier duda, consultar en el Centro de Salud.",180).forEach((l,i)=>doc.text(l,14,280+i*3.5)); }
+function constanciaDialogo(p){
+  const alc=el("select",{id:"cn-alc"},[["hoy","Solo lo aplicado hoy"],["todo","Todo el historial"]].map(([k,t])=>el("option",{value:k},t)));
+  const vac=el("input",{id:"cn-vac",value:S.ajustes.vacunador||"",placeholder:"Nombre y apellido",autocomplete:"off",style:"width:100%;box-sizing:border-box"});
+  const mat=el("input",{id:"cn-mat",value:S.ajustes.matricula||"",placeholder:"Matrícula o legajo (opcional)",autocomplete:"off",style:"width:100%;box-sizing:border-box"});
+  const guardarAj=()=>{ S.ajustes.vacunador=vac.value.trim(); S.ajustes.matricula=mat.value.trim(); save(); };
+  const armar=async()=>{ if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return null; }
+    guardarAj(); const regs=registrosConstancia(p,alc.value); const doc=new window.jspdf.jsPDF({unit:"mm",format:"a4"}); dibujarConstancia(doc,p,regs,{vacunador:vac.value.trim(),matricula:mat.value.trim()});
+    return {regs,blob:doc.output("blob"),nombre:"Constancia_"+slug(p.apellido||"paciente")+"_"+(p.dni||"")+"_"+iso(hoy)+".pdf"}; };
+  const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"},
+    el("p",{class:"small muted"},"Arma una constancia con texto formal, la fecha de hoy y lugar para firma y sello. Después la compartís por WhatsApp, mail o la imprimís."),
+    el("label",{},"¿Qué vacunas incluye?",alc),el("label",{},"Vacunador/a que firma",vac),el("label",{},"Matrícula o legajo",mat),
+    el("button",{class:"btn big",onclick:async()=>{ const a=await armar(); if(!a) return; const f=puedeCompartir(a.nombre,a.blob,"application/pdf");
+        if(f){ try{ await navigator.share({files:[f],title:a.nombre,text:textoConstancia(p,a.regs)}); }catch(e){ if(!e||e.name!=="AbortError") await descargarArchivo(a.nombre,a.blob,"application/pdf"); } }
+        else { await descargarArchivo(a.nombre,a.blob,"application/pdf"); toast("Se descargó el PDF. Adjuntalo en WhatsApp o en el mail."); } }},"📤 Compartir el PDF (WhatsApp, mail…)"),
+    el("button",{class:"btn ghost",onclick:async()=>{ const a=await armar(); if(a) descargarArchivo(a.nombre,a.blob,"application/pdf"); }},"⬇ Descargar / imprimir"),
+    p.telefono?el("button",{class:"btn ghost",onclick:()=>{ guardarAj(); const t=telWA(p); window.open("https://wa.me/549"+t+"?text="+encodeURIComponent(textoConstancia(p,registrosConstancia(p,alc.value))),"_blank","noopener"); }},"💬 Mandar el detalle en texto por WhatsApp"):null,
+    el("button",{class:"btn ghost",onclick:()=>{ guardarAj(); const regs=registrosConstancia(p,alc.value); location.href="mailto:?subject="+encodeURIComponent("Constancia de vacunación")+"&body="+encodeURIComponent(textoConstancia(p,regs)); }},"✉ Mandar el detalle en texto por mail"),
+    el("p",{class:"small muted"},"Escribí la dirección o el número solo si la persona te lo pide. Lo aplicado también hay que cargarlo en NomiVac."));
+  abrirOverlay("Constancia de vacunación",c); }
 async function carnetPDF(p){
   if(!window.jspdf){ toast("Para armar el PDF hace falta abrir la app una vez con internet."); return; }
   const doc=new window.jspdf.jsPDF({unit:"mm",format:"a4"}); dibujarCarnet(doc,p);
@@ -1460,6 +1509,11 @@ const GUIA_GENERAL=[
  ["Cadena de frío",["Todas las vacunas: entre +2 °C y +8 °C.","El calor daña de forma acumulativa; la congelación (menos de 0 °C) las inactiva y es irreversible.","Heladera exclusiva para vacunas; termómetro adentro, a la vista, sin tocar paredes; registrar temperatura al menos 2 veces por día.","Nunca vacunas en la puerta ni en el congelador; no amontonar; no guardar comida.","Botellas con agua en los estantes de abajo (2,5 cm entre sí) para estabilizar la temperatura.","Paquetes fríos: ambientarlos antes de armar la conservadora para no congelar vacunas. Termo a la sombra y cerrado.","Desvío de temperatura: separar e identificar las vacunas, mantenerlas entre 2 y 8 °C, avisar al nivel superior y llenar el formulario de desvío. No usarlas hasta que respondan.","Sospecha de congelación (vacunas con aluminio): prueba de agitación comparando con un frasco no congelado."]],
  ["Frascos abiertos",["Multidosis líquidas (DPT, dT/dTa, hepatitis B): se usan hasta 28 días abiertas si no vencieron, se conservaron en frío, el tapón no se mojó y se extrajeron con asepsia.","Reconstituidas (BCG, fiebre amarilla): 6 horas.","Monodosis reconstituidas (meningococo, dengue, VSR, triple viral): aplicar enseguida.","Frascos abiertos para la próxima sesión: recipiente aparte con el cartel «Viales abiertos – usar primero»."]],
  ["ESAVI (eventos después de vacunar)",["Es cualquier problema de salud después de vacunar, aunque no esté probado que lo causó la vacuna.","Notifica cualquier integrante del equipo de salud que lo conozca.","Plazos: graves dentro de las 48 horas; no graves dentro de 7 días (si se supo después, igual se notifica).","Dónde: ficha de ESAVI en SISA (https://sisa.msal.gov.ar/sisa/). Con matrícula profesional alcanza.","Anotar: vacuna, marca, lote, fecha de vacunación, inicio del cuadro, evolución.","Desmayo (síncope) por ansiedad: frecuente en adolescentes; no contraindica dosis siguientes. Vacunar sentado y observar.","En la app: marcá «ESAVI» al editar la aplicación para que quede registrado con su lote."]],
+ ["Falsas contraindicaciones (SÍ se puede vacunar)",["Fiebre leve, resfrío, diarrea leve u otra enfermedad aguda benigna.","Tratamiento con antibióticos o convalecencia de una enfermedad leve.","Lactancia materna (excepto fiebre amarilla en madres de bebés menores de 6 meses).","Niño que convive con una embarazada.","Alergias inespecíficas, o alergia leve (no es contraindicación).","Antecedente de convulsiones febriles, o de convulsiones o muerte súbita en la familia.","Reacciones leves a dosis anteriores de DPT.","Enfermedad neurológica conocida, resuelta y estable.","Desnutrición.","Corticoides en dosis bajas, por boca o inhalados.","Siempre es precaución (se evalúa el riesgo-beneficio o se posterga) una enfermedad aguda moderada o grave. Fuente: manual del vacunador 2013, de acuerdo con el 2025."]],
+ ["Situaciones especiales",["Prematuros (menos de 37 semanas): se vacunan por edad cronológica, con las mismas dosis. BCG con 1500 g o más (antes 2000 g); neumococo al llegar a 1800 g.","Lactancia: las vacunas inactivadas y vivas son seguras para la madre y el bebé. Evitar fiebre amarilla si el bebé tiene menos de 6 meses.","Embarazo: dTpa desde la semana 20 en cada embarazo; antigripal en cualquier trimestre; VSR entre la semana 32 y 36,6; hepatitis B si no está vacunada. Las vacunas vivas (triple viral, varicela, fiebre amarilla, dengue) NO se dan embarazada.","Inmunocomprometidos: no reciben vacunas vivas. Sí deben recibir las inactivadas (neumococo, antigripal, dT, hepatitis B, VPH con 3 dosis, meningococo). La BCG está contraindicada.","Convivientes de inmunocomprometidos: deben vacunarse (triple viral, varicela y rotavirus incluidos); si tras la varicela aparece erupción, evitar el contacto hasta que desaparezca.","Trastornos de la coagulación: aguja fina 23 G y presionar el sitio 3 minutos sin frotar.","Gammaglobulina, plasma o sangre recientes: la triple viral y la varicela se postergan (3 a 11 meses según el producto).","Esquemas atrasados: no se reinicia nunca; se completan las dosis que faltan con los intervalos mínimos.","Personal de salud: hepatitis B, triple viral (2 dosis), antigripal anual, dT cada 10 años y dTpa cada 5 si atiende bebés."]],
+ ["Anafilaxia: qué hacer",["Es una reacción de aparición repentina, que progresa rápido y afecta varios sistemas (piel, respiración, circulación, digestivo). La sola urticaria no es anafilaxia. Riesgo muy bajo: 1 a 10 por millón de dosis.","Sospechar si hay enrojecimiento, hinchazón de cara, labios o glotis, urticaria, silbidos o falta de aire.","1) Acostar al paciente con las piernas elevadas. 2) Asegurar la vía aérea y dar oxígeno. 3) Adrenalina intramuscular SIN DEMORAR, en la cara anterolateral del muslo. 4) Pedir traslado urgente a guardia.","Adrenalina 1:1000 (1 mg/ml): 0,01 ml/kg, máximo 0,3 a 0,5 ml. Se puede repetir cada 5 a 15 minutos, hasta 3 veces (manual 2013; confirmar con el protocolo y el kit de tu vacunatorio).","Los antihistamínicos y los corticoides NO reemplazan a la adrenalina.","Prevención: preguntar por alergias, observar a cada paciente 20 a 30 minutos después de vacunar y tener siempre el kit de anafilaxia con personal capacitado.","Diagnóstico diferencial: desmayo (reacción vagal) y síndrome de hipotonía-hiporrespuesta."]],
+ ["Cómo actúan las vacunas",["Vivas atenuadas (BCG, triple viral, varicela, fiebre amarilla, dengue, rotavirus): suelen necesitar pocas dosis; no se dan a embarazadas ni a inmunodeprimidos graves.","Inactivadas o de subunidades (hepatitis A y B, Salk, antigripal, neumococo, meningococo, VPH, VSR): necesitan varias dosis o refuerzos.","Toxoides (tétanos y difteria): requieren refuerzo cada 10 años.","Conjugadas (Hib, neumococo, meningococo): generan memoria inmunológica y bajan los portadores.","Inmunidad de rebaño: protege a quienes no pueden vacunarse.","Las vacunas del calendario son gratuitas, obligatorias y no requieren orden médica (Ley 27.491)."]],
+ ["Corte de energía o heladera rota",["No abrir la heladera. Anotar la hora del corte y la temperatura.","Pasar las vacunas a una conservadora con paquetes fríos ambientados si el corte se prolonga.","Mantener la temperatura entre 2 y 8 °C, avisar al nivel superior y no usar las vacunas hasta que respondan.","Tener a la vista el plan de contingencia, el termómetro digital y la planilla de temperatura, y un cartel de uso exclusivo para vacunas."]],
  ["Antes de vacunar (verificar siempre)",["Revisar carnet, SISA/NomiVac o Acuario: no vacunar de más ni de menos.","Preguntar: alergias graves, embarazo, inmunodepresión, fiebre, transfusiones o gammaglobulina recientes.","Fiebre leve, resfrío, diarrea leve, antibióticos o lactancia NO son contraindicación para la mayoría de las vacunas.","Controlar vencimiento, lote y aspecto de la vacuna.","Registrar todo: fecha, vacuna, dosis, lote, condición; y cargarlo en el sistema."]]
 ];
 function guiaDe(nombreGrilla){ return GUIA.find(x=>x.g===nombreGrilla)||null; }
@@ -1537,6 +1591,11 @@ function responder(q){
       return [...respuestaPaciente(fake).filter(x=>x&&!(x.tagName==="DIV"&&x.className==="toolbar")),el("p",{class:"small muted"},"Calculado sin ninguna vacuna aplicada. Para descontar las que ya tiene, usá la 🧮 calculadora de esquema.")]; } }
   // 2) Temas generales
   const gen=k=>{ const s=GUIA_GENERAL.find(x=>x[0].startsWith(k)); return [el("p",{},el("b",{},s[0])),el("ul",{},s[1].map(x=>el("li",{},x))),cita("Manual de Vacunación Salta 2025 · "+s[0]+".")]; };
+  if(/anafilaxia|anafilactic|adrenalina|shock/.test(n)) return gen("Anafilaxia");
+  if(/falsa.? contraindic|se puede vacunar (con|si)|puedo vacunar (con|si)|resfrio|antibiotic|fiebre leve|convulsion/.test(n)&&!vs.length) return gen("Falsas");
+  if(/prematur|lactancia|amamant|inmunocomprom|inmunodepri|coagulacion|hemofilia|gammaglobulina|convivient|personal de salud/.test(n)&&!vs.length) return gen("Situaciones");
+  if(/corte de energia|sin luz|heladera rota|plan de contingencia/.test(n)) return gen("Corte");
+  if(/como actuan|tipos de vacuna|vivas|inactivada|toxoide|inmunidad de rebano|ley 27/.test(n)&&!vs.length) return gen("Cómo actúan");
   if(/esavi|efecto adverso|reaccion|notific/.test(n)&&!vs.length) return gen("ESAVI");
   if(/cadena de frio|heladera|temperatura|corte de luz|se corto la luz|termometro|conservadora|termo|congel/.test(n)) return gen("Cadena");
   if(/frasco|vial|multidosis|reconstitu|abiert/.test(n)&&!vs.length) return gen("Frascos");
@@ -2066,7 +2125,8 @@ function datosPersonales(t){
   const libres=new Set(["vacuna","vacunas","dosis","refuerzo","triple","viral","gripe","dengue","hepatitis","varicela","sarampion","rubeola","papera","polio","salk","sabin","quintuple","pentavalente","meningococo","neumococo","rotavirus","embarazada","embarazo","adulto","adulta","bebe","nino","nina","menor","mayor","calendario","atrasada","atrasado","esquema","intervalo","cuando","como","para","entre","tiene","puede","debe","anos","meses","semanas","dias","aplicar","aplica","aplicacion","contraindicacion","contraindicaciones","amarilla","fiebre","tetanos","difteria","tos","convulsa","pertussis","cadena","frio","paciente","persona","segunda","primera","tercera","ultima","unica","antigripal","indicada","indicado","oportuna"]);
   for(const p of S.pacientes){ for(const campo of [p.apellido,p.nombre]){ for(const w of toks(campo)){ if(palabras.has(w)&&!libres.has(w)) return "«"+w+"» coincide con un apellido o nombre cargado en la app"; } } }
   return ""; }
-function resumenCalendario(){ return CAL.filter(r=>!r.zona||true).map(r=>"- "+r.vac+" · "+r.dosis+" ("+(r.grupo||"")+")").join("\n"); }
+const RESUMEN_MANUAL="Resumen fijo del Manual de Vacunación Salta 2025 (principal) y manuales 2008, 2011 y 2013 (solo si no contradicen): Todas las vacunas 2 a 8 °C; congelación daña vacunas con aluminio. Vivas inyectables (triple/doble viral, varicela, fiebre amarilla, dengue): mismo día o 28 días de intervalo; el resto sin restricción; esquema interrumpido no se reinicia. Vías: IM 90° (23 G), SC 45° (25 G), BCG intradérmica 15° (27 G), rotavirus oral; menores de 12 meses o sin caminar: muslo. Multidosis abiertas 28 días (DPT, dT, hepatitis B); BCG y fiebre amarilla reconstituidas 6 h. Falsas contraindicaciones: fiebre leve, antibióticos, lactancia, convivir con embarazada, alergia leve, convulsión febril, desnutrición, corticoides en dosis bajas. Precaución: enfermedad aguda moderada o grave. Embarazo: dTpa desde la semana 20, antigripal, VSR 32 a 36,6; vivas contraindicadas. Inmunocomprometidos: sin vivas, sí inactivadas. Prematuros: edad cronológica; neumococo con 1800 g. Anafilaxia: adrenalina IM 0,01 ml/kg de 1:1000, máx 0,3 a 0,5 ml. ESAVI: graves 48 h, no graves 7 días, notificar en SISA. Si algo depende de circulares 2026 o no figura, decir que se confirme en el manual.\n";
+function resumenCalendario(){ return RESUMEN_MANUAL+CAL.filter(r=>!r.zona||true).map(r=>"- "+r.vac+" · "+r.dosis+" ("+(r.grupo||"")+")").join("\n"); }
 async function preguntarGemini(pregunta,op={}){
   const c=gemConfig(); if(!c.key) throw new Error("Falta la clave: pegala en Registro → Consulta con IA (Gemini).");
   if(navigator.onLine===false) throw new Error("No hay internet. Probá con el bot sin internet.");
@@ -2846,7 +2906,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="e2ec16076c";
+window.APP_VER="0cce9ba760";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
