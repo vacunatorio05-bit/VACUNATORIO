@@ -1267,35 +1267,40 @@ function altaYSeguir(dniV,sexoV){
 }
 function pasoVacuna(p, previo){
   const r0=resumen(p); const sugerida=previo?CAL.find(x=>x.id===previo.dosis):([...r0.atrasada,...r0.pendiente][0]||null);
-  const vacSel=el("select",{id:"fr-vac",onchange:()=>{ llenarDosis(); llenarLote(); }},VACUNAS.map(v=>el("option",{value:v,selected:sugerida?sugerida.vac===v:false},v)));
+  const cond=selCondicion("fr-cond",previo?previo.condicion:condSugerida(p,sugerida),p); cond.addEventListener("change",llenarVac);
+  let grupos=[]; const gAct=()=>grupos.find(x=>x.g[0]===vacSel.value); const vacLote=()=>{ const x=gAct(); return x?x.chips[0].rule.vac:""; };
+  const vacSel=el("select",{id:"fr-vac",onchange:()=>{ llenarDosis(); llenarLote(); }});
   const dosisSel=el("select",{id:"fr-dosis",onchange:()=>esq.textContent=grupoDe()});
-  const esq=el("div",{class:"small muted"});
+  const esq=el("div",{class:"small muted"}); const resumenCond=el("div",{class:"small muted"});
   const lote=el("input",{id:"fr-lote",list:"fr-lotes",autocapitalize:"characters",autocomplete:"off",value:previo?previo.lote:""});
   const lotesDL=el("datalist",{id:"fr-lotes"}); const stockInfo=el("div",{class:"small muted"});
   const fecha=el("input",{id:"fr-fecha",type:"date",max:iso(hoy),value:previo?previo.fecha:iso(hoy),onchange:llenarLote});
-  function grupoDe(){ const r=CAL.find(x=>x.id===dosisSel.value); return r?"Esquema: "+r.grupo:""; }
-  function llenarDosis(){ const rs=CAL.filter(x=>x.vac===vacSel.value);
-    const pref=rs.find(x=>previo&&x.id===previo.dosis)||rs.find(x=>["atrasada","pendiente"].includes(estadoDosis(p,x).e))||rs.find(x=>!(p.aplicadas||{})[x.id])||rs[0];
-    dosisSel.replaceChildren(...rs.map(x=>{ const e=estadoDosis(p,x).e; const tag=e==="ok"?" (ya aplicada)":e==="atrasada"?" · atrasada":e==="pendiente"?" · le toca":""; return el("option",{value:x.id,selected:x===pref},x.dosis+tag); }));
-    esq.textContent=grupoDe(); }
-  function llenarLote(){ const act=lotesActivos(vacSel.value,fecha.value); lotesDL.replaceChildren(...act.map(x=>el("option",{value:x.l.lote})));
+  function grupoDe(){ const r=CAL.find(x=>x.id===dosisSel.value)||regla(dosisSel.value); return r?"Esquema: "+(r.grupo||""):""; }
+  function llenarVac(){ const first=!vacSel.dataset.t; const prev=previo&&first?(GR_DE[previo.dosis]||{g:[""]}).g[0]:vacSel.value; vacSel.dataset.t="1"; grupos=vistaVac(p,cond.value);
+    const rel=grupos.filter(x=>x.rel), otras=grupos.filter(x=>!x.rel); const op=x=>el("option",{value:x.g[0]},x.g[0]);
+    const kids=[]; if(rel.length) kids.push(el("optgroup",{label:"✔ Le corresponden ("+cond.value+")"},...rel.map(op))); kids.push(el("optgroup",{label:rel.length?"Otras vacunas":"Vacunas"},...otras.map(op)));
+    vacSel.replaceChildren(...kids); vacSel.value=(prev&&(first&&grupos.some(x=>x.g[0]===prev)||rel.some(x=>x.g[0]===prev)))?prev:(rel[0]||grupos[0]).g[0];
+    resumenCond.textContent=rel.length?"Según el manual 2025, con esta condición le corresponden: "+rel.map(x=>x.g[0]).join(", ")+".":"Con esta condición no tiene vacunas pendientes: elegí otra condición o una de «Otras vacunas».";
+    llenarDosis(); llenarLote(); }
+  function llenarDosis(){ const x=gAct(); const cs=x?x.chips:[]; const pref=cs.find(c=>previo&&c.rule.id===previo.dosis)||cs.find(c=>c.rel&&!c.bloqueada)||cs.find(c=>!c.bloqueada)||cs[0];
+    dosisSel.replaceChildren(...cs.map(c=>el("option",{value:c.rule.id,selected:c===pref},c.d+(c.bloqueada?" (ya aplicada "+fmt(c.hecha)+")":c.rel?" · le corresponde":c.st==="atrasada"?" · atrasada":"")))); esq.textContent=grupoDe(); }
+  function llenarLote(){ const act=lotesActivos(vacLote(),fecha.value); lotesDL.replaceChildren(...act.map(x=>el("option",{value:x.l.lote})));
     if(!previo&&act.length&&!lote.dataset.tocado) lote.value=act[0].l.lote; if(!act.length&&!lote.dataset.tocado&&!previo) lote.value="";
     stockInfo.textContent=act.length?"En stock: "+act.map(x=>x.l.lote+" ("+x.e.st+", vence "+fmt(x.l.vence)+")").join(" · "):""; }
   lote.addEventListener("input",()=>lote.dataset.tocado="1");
-  const cond=selCondicion("fr-cond",previo?previo.condicion:condSugerida(p,sugerida),p);
   const est=el("input",{id:"fr-est",value:previo?previo.establecimiento:(S.ajustes.establecimiento||"Centro de Salud N° 41 Tres Cerritos")});
   const vacunador=el("input",{id:"fr-vacunador",value:previo?previo.vacunador:(S.ajustes.vacunador||"")});
   const form=el("form",{class:"form card"},
     el("div",{class:"full small"},el("b",{},nombreCompleto(p))," · DNI "+(p.dni||"—")+" · "+edadTexto(edadMeses(p.nac))),
     el("label",{class:"full"},"Establecimiento",est),
     el("label",{},"Fecha",fecha),
+    el("label",{class:"full"},"Condición",cond,resumenCond),
     el("label",{},"Vacuna",vacSel),
-    el("label",{},"Condición",cond),
     el("label",{},"Dosis",dosisSel,esq),
     el("label",{},"Lote",lote,lotesDL,stockInfo),
     el("label",{},"Vacunador/a",vacunador),
     el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit"},"Continuar →")));
-  llenarDosis(); llenarLote();
+  llenarVac();
   form.addEventListener("submit",e=>{ e.preventDefault();
     const datos={dosis:dosisSel.value,fecha:fecha.value,lote:lote.value.trim().toUpperCase(),condicion:cond.value,establecimiento:est.value.trim(),vacunador:vacunador.value.trim()};
     if(!datos.fecha){ toast("Poné la fecha"); return; }
@@ -1306,7 +1311,7 @@ function pasoVacuna(p, previo){
   abrirOverlay("Registrar aplicación",c);
 }
 function pasoResumen(p,d){
-  const rule=CAL.find(x=>x.id===d.dosis);
+  const rule=regla(d.dosis);
   const avisos=[]; const t=avisoTemprano(p,rule,d.fecha); if(t) avisos.push(["bad",t]);
   if(estadoDosis(p,rule).e==="ok"&&!rule.tipo) avisos.push(["warn","Esta dosis ya figura aplicada el "+fmt((p.aplicadas||{})[rule.id])+". Si confirmás, se reemplaza la fecha."]);
   const pv=faltaPrevia(p,rule); if(pv) avisos.push(["warn","No figura aplicada la dosis anterior ("+pv+")."]);
@@ -3133,7 +3138,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="5a9c8b7044";
+window.APP_VER="346a43a6ec";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
