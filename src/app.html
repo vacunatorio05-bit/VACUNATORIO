@@ -782,7 +782,7 @@ function editarPaciente(id, base){
     save();
     if(nv) toast("Guardado con "+nv+" vacuna(s) registradas. Acordate de cargarlas en SISA y Acuario.");
     if(otro){ toast("Guardado: "+nombreCompleto(p)); editarPaciente(null,{escuela:p.escuela,curso:p.curso,domicilio:""}); return; }
-    toast("Guardado"); abrirPaciente(p.id);
+    toast("Guardado"); if(base&&base.alGuardar){ base.alGuardar(p); return; } abrirPaciente(p.id);
   });
   abrirOverlay(id?"Editar paciente":"Nuevo paciente",form);
   if(!id) setTimeout(()=>dniIn.focus(),60);
@@ -2006,15 +2006,31 @@ function nuevaVisita(x, paciente){
   const leerForm=()=>{ ["fecha","hora","direccion","personas","vacunas","vacunador","obs","resultado","tipo","detalle","dni","edad","telefono","notificacion"].forEach(k=>vis[k]=form.querySelector("#v-"+k).value.trim()); };
   const guardarVis=()=>{ leerForm(); if(vis.vacunador) S.ajustes.vacunador=vis.vacunador; const pac=pacSel(); if(pac && vis.lat!=null){ pac.lat=vis.lat; pac.lng=vis.lng; if(vis.direccion&&!pac.domicilio) pac.domicilio=vis.direccion; }
     const i=S.visitas.findIndex(y=>y.id===vis.id); if(i>=0) S.visitas[i]=vis; else S.visitas.push(vis); save(); };
+  // Vacunas aplicadas en la visita: listas desplegables (vacuna, dosis y condición), se suman a la lista
+  let itemsVac=String(vis.vacunas||"").split(/\s*,\s*/).filter(Boolean);
+  const hidVac=el("input",{id:"v-vacunas",type:"hidden",value:itemsVac.join(", ")});
+  const listaVac=el("div",{class:"chips"});
+  const pintarVac2=()=>{ hidVac.value=itemsVac.join(", "); listaVac.replaceChildren(...itemsVac.map((t,i)=>el("span",{class:"chip ex"},t+" ",el("button",{type:"button",class:"btn ghost sm","aria-label":"Quitar",onclick:()=>{ itemsVac.splice(i,1); pintarVac2(); }},"✕")))); };
+  const vSel=el("select",{id:"v-vsel"},el("option",{value:""},"Elegí la vacuna…"),...GRILLA.map(g=>el("option",{value:g[0]},g[0])),el("option",{value:"__otra"},"Otra (escribir)"));
+  const dSel=el("select",{id:"v-dsel"},el("option",{value:""},"Elegí la dosis…"));
+  const otraIn=el("input",{id:"v-votra",placeholder:"Nombre de la vacuna",hidden:true,autocomplete:"off"});
+  vSel.addEventListener("change",()=>{ const g=GRILLA.find(x=>x[0]===vSel.value); otraIn.hidden=vSel.value!=="__otra"; dSel.replaceChildren(el("option",{value:""},"Elegí la dosis…"),...(g?g[3].map(([d])=>el("option",{value:d},d)):[])); if(g&&g[3].length===1) dSel.value=g[3][0][0]; });
+  const condVis=selCondicion("v-cond","Regular",pacSel()||null);
+  const agregarVac=()=>{ const nombre=vSel.value==="__otra"?otraIn.value.trim():vSel.value; if(!nombre){ toast("Elegí la vacuna"); return; }
+    itemsVac.push([nombre,dSel.value,condVis.value].filter(Boolean).join(" · ")); pintarVac2(); vSel.value=""; vSel.dispatchEvent(new Event("change")); otraIn.value=""; };
+  pintarVac2();
+  const bloqueVac=el("div",{class:"full card",style:"display:flex;flex-direction:column;gap:8px"},el("b",{},"Vacunas aplicadas"),el("div",{class:"small muted"},"Elegí de las listas y tocá «Agregar». Podés sumar varias."),
+    el("label",{},"Vacuna",vSel),otraIn,el("label",{},"Dosis",dSel),el("label",{},"Condición",condVis),el("button",{type:"button",class:"btn ghost",onclick:agregarVac},"➕ Agregar esta vacuna"),listaVac,hidVac);
   const form=el("form",{class:"form card"},ubic,
     el("label",{class:"full"},"Paciente del padrón (opcional)",pacIn,el("datalist",{id:"v-pacs"},S.pacientes.map(p=>el("option",{value:etiquetaP(p)})))),
+    el("div",{class:"full toolbar"},el("button",{type:"button",class:"btn ghost sm",onclick:()=>{ leerForm(); guardarVis(); editarPaciente(null,{domicilio:vis.direccion||"",alGuardar:np=>{ vis.pacienteId=np.id; if(!vis.personas) vis.personas=nombreCompleto(np); nuevaVisita(vis); }}); }},"➕ Paciente nuevo (cargar sus datos)"),el("span",{class:"small muted"},"Si no está en el padrón, cargalo y volvés a la visita.")),
     f("fecha","Fecha",{type:"date",max:iso(hoy),required:true}), f("hora","Hora",{type:"time"}),
     f("direccion","Dirección",{placeholder:"Calle y número, manzana, lote"},true),
     el("label",{class:"full"},"Tipo de visita",el("select",{id:"v-tipo"},TIPOS_VIS.map(t=>el("option",{value:t[0],selected:(vis.tipo||"vacunacion")===t[0]},t[1])))),
     f("detalle","Enfermedad / situación (si no es vacunación)",{placeholder:"Ej.: sospecha de dengue, tuberculosis, vivienda precaria"},true),
     el("label",{class:"full"},"Resultado",el("select",{id:"v-resultado"},RESULTADOS.map(r=>el("option",{value:r[0],selected:vis.resultado===r[0]},r[1])))),
     f("personas","Personas visitadas",{placeholder:"Apellido y nombre"},true),
-    f("vacunas","Vacunas aplicadas",{placeholder:"Ej.: Antigripal, dT"},true),
+    bloqueVac,
     f("dni","DNI de la persona",{inputmode:"numeric",placeholder:"Opcional"}), f("edad","Edad",{placeholder:"Ej.: 34 años"}), f("telefono","Teléfono",{inputmode:"tel"}),
     f("notificacion","Fecha de notificación",{type:"date",max:iso(hoy)}),
     f("vacunador","Vacunador/a"),
