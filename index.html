@@ -737,6 +737,32 @@ function confirmarBorrar(p){
 }
 function fechaTexto(inp){ // escribe 15032019 y queda 15/03/2019
   const d=inp.value.replace(/\D/g,"").slice(0,8); let t=d; if(d.length>4) t=d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4); else if(d.length>2) t=d.slice(0,2)+"/"+d.slice(2); inp.value=t; }
+/* Condición del paciente en listas desplegables (reemplaza las casillas): tipo → detalle → «Agregar». Guarda en p.embarazada / p.grupos / p.riesgos / p.calendario */
+function condPacienteUI(ce,p,alCambiar){
+  const TIPOS=[["calendario","Calendario"],["riesgo","Factor de riesgo"],["embarazada","Embarazada"],["puerpera","Puérpera"],["personal","Personal"],["otros","Otros"]];
+  const det=t=>t==="riesgo"?RIESGOS.map(r=>["r:"+r[0],r[1].split(" (")[0]+(r[2]?"":" (se anota, no suma vacunas)")]):t==="personal"?[["g:personal_salud","Personal de salud"],["g:ps_lactantes","Personal de salud que atiende menores de 1 año"],["g:estrategico","Personal esencial / estratégico / seguridad"]]:t==="otros"?[["g:manipula","Manipula alimentos, limpieza en salud/educación o cloacas"],["g:conv_prematuro","Conviviente de prematuro menor de 1500 g (hasta 6 meses)"]]:[];
+  const nombre=k=>{ if(k==="emb") return "Embarazada"; if(k[0]==="r") return ((RIESGOS.find(r=>r[0]===k.slice(2))||[0,k])[1]).split(" (")[0]; return ((GRUPOS_P.find(g=>g[0]===k.slice(2))||[0,k])[1]); };
+  const tsel=el("select",{"aria-label":"Tipo de condición"},el("option",{value:""},"Elegí el tipo…"),TIPOS.map(([k,t])=>el("option",{value:k},t)));
+  const dsel=el("select",{"aria-label":"Detalle de la condición",hidden:true});
+  const csel=el("select",{"aria-label":"Calendario regular o atrasado",hidden:true},el("option",{value:"Regular"},"Regular (se coloca según su edad)"),el("option",{value:"Atrasado"},"Atrasado (fuera de su edad de administración)"));
+  csel.value=ce.cal; csel.addEventListener("change",()=>{ ce.cal=csel.value; alCambiar(); });
+  const btn=el("button",{type:"button",class:"btn ghost sm",hidden:true},"➕ Agregar");
+  const chips=el("div",{class:"chips"}); const ayuda=el("div",{class:"small muted"});
+  const claves=()=>[...(ce.emb?["emb"]:[]),...[...ce.grupos].map(k=>"g:"+k),...[...ce.riesgos].map(k=>"r:"+k)];
+  const quitar=k=>{ if(k==="emb") ce.emb=false; else if(k[0]==="g") ce.grupos.delete(k.slice(2)); else ce.riesgos.delete(k.slice(2)); pintar(); alCambiar(); };
+  const pintar=()=>{ chips.replaceChildren(...claves().map(k=>el("span",{class:"chip ex"},nombre(k)+" ",el("button",{type:"button",class:"btn ghost sm","aria-label":"Quitar",onclick:()=>quitar(k)},"✕")))); };
+  const poner=k=>{ if(k==="emb") ce.emb=true; else if(k[0]==="g") ce.grupos.add(k.slice(2)); else ce.riesgos.add(k.slice(2)); pintar(); alCambiar(); };
+  tsel.addEventListener("change",()=>{ const t=tsel.value; csel.hidden=t!=="calendario";
+    if(t==="embarazada"){ poner("emb"); tsel.value=""; ayuda.textContent=""; dsel.hidden=true; btn.hidden=true; return; }
+    if(t==="puerpera"){ poner("g:puerpera"); tsel.value=""; ayuda.textContent=""; dsel.hidden=true; btn.hidden=true; return; }
+    const ops=det(t); dsel.hidden=!ops.length; btn.hidden=!ops.length; dsel.replaceChildren(el("option",{value:""},"Elegí…"),...ops.map(([v,l])=>el("option",{value:v},l)));
+    ayuda.textContent=t==="calendario"?"Regular: se vacuna a la edad que le toca. Atrasado: se vacuna fuera de su edad de administración.":t==="riesgo"?"Podés agregar varios factores.":""; });
+  btn.addEventListener("click",()=>{ if(!dsel.value){ toast("Elegí una opción de la lista"); return; } poner(dsel.value); dsel.value=""; });
+  pintar();
+  return el("div",{class:"full card",style:"display:flex;flex-direction:column;gap:8px"},el("b",{},"Condición del paciente"),
+    el("label",{},"Tipo",tsel),csel,el("label",{hidden:false,style:"display:contents"},dsel),btn,ayuda,chips,
+    el("input",{id:"p-riesgoOtro",placeholder:"Otra enfermedad (opcional)",value:p.riesgoOtro||""}));
+}
 function editarPaciente(id, base){
   const p = id? S.pacientes.find(x=>x.id===id) : Object.assign({id:uid(),apellido:"",nombre:"",dni:"",nac:"",sexo:"",domicilio:"",telefono:"",escuela:"",curso:"",embarazada:false,aplicadas:{}},base||{});
   const campo=(k,t,attrs={},full)=>el("label",{class:full?"full":""},t,el("input",Object.assign({id:"p-"+k,value:p[k]||""},attrs)));
@@ -762,10 +788,11 @@ function editarPaciente(id, base){
   const tipoSel=el("select",{id:"p-tipopac",required:true,onchange:()=>cond()},el("option",{value:""},"— Elegí el tipo de paciente —"),...TIPOS_PAC.map(([k,t])=>el("option",{value:k,selected:tipoIni===k},t)));
   function cond(){ const t=tipoSel.value; const conEsc=["alumno","docente","personal"].includes(t); escLab.hidden=!conEsc; escIn.required=conEsc; espLab.hidden=t!=="otro"; espIn.required=t==="otro"; }
   let otro=false;
+  const ce={emb:!!p.embarazada,grupos:new Set(p.grupos||[]),riesgos:new Set(p.riesgos||[]),cal:p.calendario||"Regular"};
   const vacBox=el("div",{style:"margin-top:10px"}); const fap=el("input",{type:"date",id:"p-fap",value:iso(hoy),max:iso(hoy)}); let grid=null;
   function pintarVac(){ const nac=fechaDesde(fechaIn.value);
     if(!nac||fechaIn.value.length<10){ grid=null; vacBox.replaceChildren(el("p",{class:"small muted"},"Escribí la fecha de nacimiento y acá elegís condición, vacuna y dosis de las listas.")); return; }
-    const t=Object.assign({},p,{nac,aplicadas:p.aplicadas||{},embarazada:!!form.querySelector("#p-embarazada")?.checked});
+    const t=Object.assign({},p,{nac,aplicadas:p.aplicadas||{},embarazada:ce.emb,grupos:[...ce.grupos],riesgos:[...ce.riesgos]});
     grid=gridVacunas(t,{fecha:()=>fap.value});
     vacBox.replaceChildren(el("label",{class:"small",style:"display:flex;flex-direction:column;max-width:14em;margin-bottom:8px"},"Fecha de aplicación",fap),grid.node); grid.revisar(); }
   fap.addEventListener("change",()=>grid&&grid.revisar());
@@ -775,13 +802,7 @@ function editarPaciente(id, base){
     campo("apellido","Apellido",{required:true,autocapitalize:"characters",autocomplete:"off"}),
     campo("nombre","Nombre",{required:true,autocapitalize:"words",autocomplete:"off"}),
     el("label",{},"Fecha de nacimiento",fechaIn,edadInfo),
-    el("details",{class:"full",open:!!(p.embarazada||(p.grupos||[]).length||(p.riesgos||[]).length)},el("summary",{},"Condición y factores de riesgo"),
-      el("div",{class:"cond-grid"},
-        el("label",{class:"check"},el("input",{type:"checkbox",id:"p-embarazada",checked:!!p.embarazada}),"Embarazada"),
-        GRUPOS_P.map(([k,t])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-grupo",value:k,checked:(p.grupos||[]).includes(k)}),t)),
-        el("div",{class:"small muted",style:"margin-top:6px;font-weight:700"},"Factores de riesgo (podés marcar varios)"),
-        RIESGOS.map(([k,t,ind])=>el("label",{class:"check"},el("input",{type:"checkbox",class:"p-riesgo",value:k,checked:(p.riesgos||[]).includes(k)}),t,ind?null:el("span",{class:"small muted"}," (se anota, no suma vacunas)"))),
-        el("input",{id:"p-riesgoOtro",placeholder:"¿Cuál otra enfermedad? (opcional)",value:p.riesgoOtro||""}))),
+    condPacienteUI(ce,p,()=>{ if(grid&&!grid.seleccion().length) pintarVac(); }),
     mas,
     el("details",{class:"full",id:"p-vacdet"},el("summary",{},"💉 Registrar vacunas aplicadas ahora (opcional)"),vacBox),
     el("div",{class:"full toolbar"},el("button",{class:"btn",type:"submit",onclick:()=>{otro=false;}},"Guardar"),
@@ -791,9 +812,9 @@ function editarPaciente(id, base){
     const nac=fechaDesde(fechaIn.value); if(!nac||nac>iso(hoy)){ toast("Revisá la fecha de nacimiento (dd/mm/aaaa)"); fechaIn.focus(); return; }
     ["apellido","nombre","tipodoc","dni","sexo","telefono","domicilio","tutor","escuela","curso","verif"].forEach(k=>p[k]=form.querySelector("#p-"+k).value.trim()); p.barrio=""; p.tipoPac=tipoSel.value; p.docente=p.tipoPac==="docente"||p.tipoPac==="personal"; p.tipoOtro=p.tipoPac==="otro"?espIn.value.trim():""; if(!["alumno","docente","personal"].includes(p.tipoPac)) p.escuela=p.escuela||"";
     p.apellido=p.apellido.toUpperCase(); p.nac=nac;
-    p.embarazada=form.querySelector("#p-embarazada").checked;
-    p.grupos=[...form.querySelectorAll(".p-grupo:checked")].map(x=>x.value);
-    p.riesgos=[...form.querySelectorAll(".p-riesgo:checked")].map(x=>x.value);
+    p.embarazada=ce.emb; p.calendario=ce.cal;
+    p.grupos=[...ce.grupos];
+    p.riesgos=[...ce.riesgos];
     p.riesgoOtro=form.querySelector("#p-riesgoOtro").value.trim();
     if(!id){ const dup=p.dni&&S.pacientes.find(x=>x.dni===p.dni); if(dup){ toast("Ya hay un paciente con ese DNI"); return; } S.pacientes.push(p); }
     let nv=0; if(grid){ const f=fap.value||iso(hoy); p.historial=p.historial||[]; p.aplicadas=p.aplicadas||{};
@@ -3138,7 +3159,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="346a43a6ec";
+window.APP_VER="d09dde54c4";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
