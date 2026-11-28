@@ -2031,6 +2031,17 @@ function importarLibroCompleto(hojas,nombreArchivo){
 const GEM_KEY="vacunatorio_gemini_v1"; let GEM_AC=null;
 const GEM_MODELOS=[["gemini-flash-latest","Gemini Flash (el más nuevo, recomendado)"],["gemini-pro-latest","Gemini Pro (el más nuevo, más completo)"],["gemini-2.5-flash","Gemini 2.5 Flash"],["gemini-2.5-flash-lite","Gemini 2.5 Flash-Lite"],["gemini-2.5-pro","Gemini 2.5 Pro"]];
 const gemModelo=c=>(c.modeloManual||c.modelo||GEM_MODELOS[0][0]).trim();
+const GEM_NO_CHAT=/tts|image|embed|live|audio|robotics|computer-use|learnlm|aqa|imagen|veo|native-audio|thinking-exp/i;
+const gemPuntaje=id=>/hydrogen/i.test(id)?0:/flash-lite/i.test(id)?1:/flash/i.test(id)?2:/pro/i.test(id)?4:3;
+const gemOrden=l=>l.slice().sort((a,b)=>(gemPuntaje(a)-gemPuntaje(b))||(/preview|exp/i.test(a)-/preview|exp/i.test(b))||(/latest/.test(b)-/latest/.test(a))||b.localeCompare(a));
+function gemElegirDefecto(l){ const o=gemOrden(l); return o.find(m=>/flash-latest|flash-lite-latest/.test(m))||o[0]||null; }
+// Trae de Google los modelos vigentes para esta clave (solo los que sirven para generateContent)
+async function listarModelosGemini(key){
+  let todos=[],tok=""; for(let i=0;i<4;i++){ const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200"+(tok?"&pageToken="+encodeURIComponent(tok):""),{headers:{"x-goog-api-key":key}});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error((j.error&&j.error.message)||("Error "+r.status)); todos=todos.concat(j.models||[]); tok=j.nextPageToken; if(!tok) break; }
+  const l=todos.filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent")&&/gemini/i.test(m.name)&&!GEM_NO_CHAT.test(m.name)).map(m=>m.name.replace(/^models\//,""));
+  if(!l.length) throw new Error("Google no devolvió modelos");
+  const n=gemConfig(); n.lista=gemOrden([...new Set(l)]); gemGuardar(n); return n.lista; }
 function gemConfig(){ try{ return JSON.parse(localStorage.getItem(GEM_KEY)||"{}"); }catch(e){ return {}; } }
 function gemGuardar(c){ try{ localStorage.setItem(GEM_KEY,JSON.stringify(c)); return true; }catch(e){ return false; } }
 // Devuelve un motivo si el texto parece traer datos de personas; si no, "".
@@ -2053,7 +2064,7 @@ async function preguntarGemini(pregunta,op={}){
     body:JSON.stringify(Object.assign({systemInstruction:{parts:[{text:(op.sistema||sistema)+(web?"\nPodés buscar en la web fuentes oficiales (Ministerio de Salud de la Nación, Ministerio de Salud de Salta, circulares y alertas vigentes) para lo que no esté en el calendario. Citá la fuente y la fecha si la encontrás.":"")}]},contents:[{role:"user",parts:[{text:pregunta}]}],generationConfig:{temperature:0.2,maxOutputTokens:op.max||1200}},web?{tools:[{google_search:{}}]}:{}))});
   // Prueba el modelo elegido y, si ya no existe, el alias «gemini-flash-latest». Si falla la búsqueda web, reintenta sin ella.
   let r=null, usado={m:"",web:false}, avisoWeb="", demanda=false; const elegido=gemModelo(c); const quiereWeb=op.web!==undefined?!!op.web:!!c.web;
-  const modelos=[...new Set([elegido,GEM_MODELOS[0][0],"gemini-2.5-flash-lite","gemini-2.5-flash",GEM_MODELOS[1][0]])]; const limite=Date.now()+100000;
+  const modelos=[...new Set([elegido].concat(c.lista&&c.lista.length?gemOrden(c.lista).slice(0,5):[GEM_MODELOS[0][0],"gemini-2.5-flash-lite","gemini-2.5-flash",GEM_MODELOS[1][0]]))].slice(0,6); const limite=Date.now()+100000;
   const dormir=ms=>new Promise(ok=>setTimeout(ok,window.GEM_TEST_MS?50:ms));
   const saturado=(st,j)=>st===503||st===500||st===502||st===504||/high demand|overloaded|UNAVAILABLE/i.test(JSON.stringify(j||{}));
   buscar: for(const m of modelos){ let reint=0;
@@ -2097,9 +2108,13 @@ function abrirGemini(){
 }
 function cardGemini(){
   const c=gemConfig(); const key=el("input",{type:"password",id:"gem-key",placeholder:c.key?"Clave guardada (pegá otra para cambiarla)":"Pegá acá tu clave de Gemini",autocomplete:"off",style:"width:100%;box-sizing:border-box"});
-  const mod=el("select",{id:"gem-mod"},GEM_MODELOS.map(([k,t])=>el("option",{value:k,selected:(c.modelo||GEM_MODELOS[0][0])===k},t)));
   const web=el("input",{type:"checkbox",id:"gem-web",checked:!!c.web});
   const man=el("input",{id:"gem-man",placeholder:"Otro modelo (opcional), ej.: gemini-flash-latest",value:c.modeloManual||"",autocomplete:"off",autocapitalize:"off",style:"width:100%;box-sizing:border-box"});
+  const mod=el("select",{id:"gem-mod"});
+  const llenar=(lista,sel)=>{ mod.innerHTML=""; const base=lista&&lista.length?lista.map(k=>[k,(GEM_MODELOS.find(x=>x[0]===k)||[k,k])[1]]):GEM_MODELOS; const tiene=base.some(x=>x[0]===sel); (tiene||!sel?base:[[sel,sel+" (guardado)"]].concat(base)).forEach(([k,t])=>mod.append(el("option",{value:k},t))); mod.value=sel||base[0][0]; };
+  llenar(c.lista,c.modelo||(c.lista?gemElegirDefecto(c.lista):GEM_MODELOS[0][0]));
+  mod.onchange=()=>{ const n=gemConfig(); n.modelo=mod.value; n.modeloManual=""; man.value=""; gemGuardar(n); toast("Modelo guardado: "+mod.value); };
+  const actualizar=async(avisar)=>{ try{ const k=gemConfig().key; if(!k) return; const l=await listarModelosGemini(k); const n=gemConfig(); const sel=l.includes(n.modelo)?n.modelo:(n.modeloManual?n.modelo:gemElegirDefecto(l)); n.modelo=sel; gemGuardar(n); llenar(l,sel); if(avisar) toast("Modelos actualizados: "+l.length+". Elegido: "+sel); }catch(e){ if(avisar) toast("No pude traer la lista: "+(e.message||"").slice(0,100)); } };
   return el("div",{class:"card",id:"gem-card"},el("h3",{},"Consulta con IA (Gemini)"),
     el("p",{class:"small muted"},"Para dudas generales de vacunas. Usa internet y la clave de Google. Nunca se envían nombres, DNI ni datos de pacientes. La clave queda solo en este celular (no va en las copias ni en el Excel)."),
     el("details",{},el("summary",{style:"min-height:48px;display:flex;align-items:center;font-weight:700"},"¿Cómo saco la clave? (gratis)"),
@@ -2107,9 +2122,10 @@ function cardGemini(){
     el("a",{class:"btn ghost",style:"min-height:48px;display:inline-flex;align-items:center",href:"https://aistudio.google.com/apikey",target:"_blank",rel:"noopener noreferrer"},"Abrir Google AI Studio"),
     key,el("label",{},"Modelo",mod),el("label",{},"Escribir el nombre del modelo a mano",man),
     el("label",{class:"check",style:"min-height:48px"},web,"Buscar en la web (puede tener un cupo gratis aparte; si no hay cupo, responde sin buscar)"),
-    el("div",{class:"toolbar"},el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ const n=gemConfig(); if(key.value.trim()) n.key=key.value.trim(); n.modelo=mod.value; n.modeloManual=man.value.trim(); n.web=web.checked; if(gemGuardar(n)){ key.value=""; toast("Guardado en este celular"); render(); } else toast("No se pudo guardar"); }},"Guardar"),
+    el("div",{class:"toolbar"},el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ const n=gemConfig(); if(key.value.trim()) n.key=key.value.trim(); n.modelo=mod.value; n.modeloManual=man.value.trim(); n.web=web.checked; if(gemGuardar(n)){ key.value=""; toast("Guardado en este celular"); if(n.key&&!n.lista) listarModelosGemini(n.key).then(()=>render()).catch(()=>{}); render(); } else toast("No se pudo guardar"); }},"Guardar"),
       c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>{ try{ localStorage.removeItem(GEM_KEY); }catch(e){} toast("Clave borrada"); render(); }},"Borrar la clave"):null,
-      c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:abrirGemini},"Probar"):null));
+      c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:async()=>{ const n=gemConfig(); n.modelo=mod.value; n.modeloManual=man.value.trim(); gemGuardar(n); await actualizar(false); abrirGemini(); }},"Probar"):null,
+      c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>actualizar(true)},"Actualizar modelos"):null));
 }
 
 
