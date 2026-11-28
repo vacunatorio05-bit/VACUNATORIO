@@ -781,7 +781,7 @@ function editarPaciente(id, base){
   const vacBox=el("div",{style:"margin-top:10px"}); const fap=el("input",{type:"date",id:"p-fap",value:iso(hoy),max:iso(hoy)}); let grid=null;
   function pintarVac(){ const nac=fechaDesde(fechaIn.value);
     if(!nac||fechaIn.value.length<10){ grid=null; vacBox.replaceChildren(el("p",{class:"small muted"},"Escribí la fecha de nacimiento y acá elegís condición, vacuna y dosis de las listas.")); return; }
-    const t=Object.assign({},p,{nac,aplicadas:p.aplicadas||{},embarazada:ce.emb,grupos:[...ce.grupos],riesgos:[...ce.riesgos]});
+    const t=Object.assign({},p,{nac,aplicadas:p.aplicadas||{},embarazada:ce.emb,grupos:[...ce.grupos],riesgos:[...ce.riesgos],calendario:ce.cal});
     grid=gridVacunas(t,{fecha:()=>fap.value});
     vacBox.replaceChildren(el("label",{class:"small",style:"display:flex;flex-direction:column;max-width:14em;margin-bottom:8px"},"Fecha de aplicación",fap),grid.node); grid.revisar(); }
   fap.addEventListener("change",()=>grid&&grid.revisar());
@@ -1294,7 +1294,7 @@ function pasoVacuna(p, previo){
     const rel=grupos.filter(x=>x.rel), otras=grupos.filter(x=>!x.rel); const op=x=>el("option",{value:x.g[0]},x.g[0]);
     const kids=[]; if(rel.length) kids.push(el("optgroup",{label:"✔ Le corresponden ("+cond.value+")"},...rel.map(op))); kids.push(el("optgroup",{label:rel.length?"Otras vacunas":"Vacunas"},...otras.map(op)));
     vacSel.replaceChildren(...kids); vacSel.value=(prev&&(first&&grupos.some(x=>x.g[0]===prev)||rel.some(x=>x.g[0]===prev)))?prev:(rel[0]||grupos[0]).g[0];
-    resumenCond.textContent=rel.length?"Según el manual 2025, con esta condición le corresponden: "+rel.map(x=>x.g[0]).join(", ")+".":"Con esta condición no tiene vacunas pendientes: elegí otra condición o una de «Otras vacunas».";
+    resumenCond.textContent=rel.length?"Según el manual 2025, con esta condición le corresponden: "+rel.map(x=>x.g[0]).join(", ")+".":"Con esta condición no tiene vacunas pendientes. Si le faltan vacunas de edades anteriores, elegí Calendario → Atrasado. También podés elegir otra condición o una de «Otras vacunas».";
     llenarDosis(); llenarLote(); }
   function llenarDosis(){ const x=gAct(); const cs=x?x.chips:[]; const pref=cs.find(c=>previo&&c.rule.id===previo.dosis)||cs.find(c=>c.rel&&!c.bloqueada)||cs.find(c=>!c.bloqueada)||cs[0];
     dosisSel.replaceChildren(...cs.map(c=>el("option",{value:c.rule.id,selected:c===pref},c.d+(c.bloqueada?" (ya aplicada "+fmt(c.hecha)+")":c.rel?" · le corresponde":c.st==="atrasada"?" · atrasada":"")))); esq.textContent=grupoDe(); }
@@ -1485,7 +1485,9 @@ function selCondicion(id,valor,paciente){ valor=condNueva(valor); let raw=null;
   Object.defineProperty(w,"value",{get:leer,set:poner});
   return w; }
 function condSugerida(p,rule){
-  if(!rule) return p.embarazada?"Embarazo":"Regular";
+  if(!rule){ if(p.embarazada) return "Embarazo"; if(p.calendario==="Atrasado") return esquemaCalendario(p,"Atrasado"); const g=p.grupos||[]; if(g.includes("puerpera")) return "Puerperio";
+    if((p.riesgos||[]).some(k=>(RIESGOS.find(r=>r[0]===k)||[0,0,""])[2])) return condSugerida(p,{cond:"riesgo"});
+    if(g.includes("personal_salud")||g.includes("ps_lactantes")) return "Personal de Salud"; if(g.includes("estrategico")) return "Personal Esencial"; return esquemaCalendario(p,"Regular"); }
   const c=rule.cond||"", id=rule.id;
   if(c==="embarazada") return "Embarazo"; if(c==="puerpera") return "Puerperio";
   if(c==="personal_salud"||c==="ps_lactantes") return "Personal de Salud"; if(c==="estrategico") return "Personal Esencial";
@@ -1532,7 +1534,7 @@ function gridVacunas(p,o={}){
     if(rel.length) kids.push(el("optgroup",{label:"✔ Le corresponden ("+condEl.value+")"},...rel.map(op)));
     kids.push(el("optgroup",{label:rel.length?"Otras vacunas":"Vacunas (ninguna le corresponde por esta condición)"},...otras.map(op)));
     vSel.replaceChildren(...kids); if(prev&&grupos.some(x=>x.g[0]===prev)) vSel.value=prev; else vSel.value="";
-    resumenCond.textContent=rel.length?"Según el manual 2025, con esta condición le corresponden: "+rel.map(x=>x.g[0]).join(", ")+".":"Con esta condición no tiene vacunas pendientes. Podés elegir otra condición o una de «Otras vacunas».";
+    resumenCond.textContent=rel.length?"Según el manual 2025, con esta condición le corresponden: "+rel.map(x=>x.g[0]).join(", ")+".":"Con esta condición no tiene vacunas pendientes. Si le faltan vacunas de edades anteriores, elegí Calendario → Atrasado. También podés elegir otra condición o una de «Otras vacunas».";
     vSel.dispatchEvent(new Event("change")); };
   vSel.addEventListener("change",()=>{ const x=act(); const libres=x?x.chips.filter(c=>!c.bloqueada):[];
     dSel.replaceChildren(el("option",{value:""},"Elegí la dosis…"),...(x?x.chips.map(c=>el("option",{value:c.d,disabled:c.bloqueada},c.d+(c.bloqueada?"  ·  ✓ ya aplicada "+fmt(c.hecha):c.rel?"  ·  le corresponde":c.st==="atrasada"?"  ·  atrasada":""))):[]));
@@ -2096,13 +2098,13 @@ function nuevaVisita(x, paciente){
   const listaVac=el("div",{class:"chips"});
   const pintarVac2=()=>{ hidVac.value=itemsVac.join(", "); listaVac.replaceChildren(...itemsVac.map((t,i)=>el("span",{class:"chip ex"},t+" ",el("button",{type:"button",class:"btn ghost sm","aria-label":"Quitar",onclick:()=>{ itemsVac.splice(i,1); pintarVac2(); }},"✕")))); };
   const vSel=el("select",{id:"v-vsel"});
-  let condVis=selCondicion("v-cond","Regular",pacSel()||null); const condBox=el("div"); condBox.append(condVis);
+  let condVis=selCondicion("v-cond",pacSel()?condSugerida(pacSel(),null):"Regular",pacSel()||null); const condBox=el("div"); condBox.append(condVis);
   const llenarVac=()=>{ const prev=vSel.value, p=pacSel(); const kids=[el("option",{value:""},"Elegí la vacuna…")];
     if(p){ const v=vistaVac(p,condVis.value), rel=v.filter(x=>x.rel), otras=v.filter(x=>!x.rel); const op=x=>el("option",{value:x.g[0]},x.g[0]);
       if(rel.length) kids.push(el("optgroup",{label:"✔ Le corresponden ("+condVis.value+")"},...rel.map(op))); kids.push(el("optgroup",{label:rel.length?"Otras vacunas":"Vacunas"},...otras.map(op))); }
     else kids.push(...GRILLA.map(g=>el("option",{value:g[0]},g[0])));
     kids.push(el("option",{value:"__otra"},"Otra (escribir)")); vSel.replaceChildren(...kids); if(prev&&[...vSel.options].some(o=>o.value===prev)) vSel.value=prev; };
-  const nuevaCond=()=>{ const n=selCondicion("v-cond",condVis.value,pacSel()||null); condVis.replaceWith(n); condVis=n; n.addEventListener("change",llenarVac); llenarVac(); };
+  const nuevaCond=()=>{ const n=selCondicion("v-cond",pacSel()?condSugerida(pacSel(),null):condVis.value,pacSel()||null); condVis.replaceWith(n); condVis=n; n.addEventListener("change",llenarVac); llenarVac(); };
   condVis.addEventListener("change",llenarVac); llenarVac();
   const dSel=el("select",{id:"v-dsel"},el("option",{value:""},"Elegí la dosis…"));
   const otraIn=el("input",{id:"v-votra",placeholder:"Nombre de la vacuna",hidden:true,autocomplete:"off"});
