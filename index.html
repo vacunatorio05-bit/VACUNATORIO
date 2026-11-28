@@ -2093,7 +2093,7 @@ function abrirGemini(){
   const c=gemConfig();
   const cont=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
   cont.append(el("div",{class:"note bad"},"⚠ Esta consulta sale por internet a Google (Gemini) y puede buscar en la web. NO escribas nombres, DNI ni datos de pacientes: la app lo bloquea si lo detecta. Es una ayuda para dudas generales y NO reemplaza el manual ni el criterio del equipo de salud."));
-  if(!c.key&&!groqConfig().key){ cont.append(el("div",{class:"card"},el("p",{},"Todavía no cargaste ninguna clave (Gemini o Groq)."),el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Cargar la clave (te explico cómo)"))); abrirOverlay("Consulta con IA (Gemini)",cont); return; }
+  if(!c.key){ cont.append(el("div",{class:"card"},el("p",{},"Todavía no cargaste la clave de Gemini."),el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Cargar la clave (te explico cómo)"))); abrirOverlay("Consulta con IA (Gemini)",cont); return; }
   const q=el("textarea",{id:"gem-q",rows:4,placeholder:"Ej.: ¿Cuál es el intervalo mínimo entre la 1ª y la 2ª dosis de hepatitis B en un adulto?",style:"width:100%;box-sizing:border-box"});
   const res=el("div",{class:"card",hidden:true,style:"white-space:pre-wrap"}); const aviso=el("div",{class:"note bad",hidden:true});
   const btn=el("button",{class:"btn",type:"button",style:"min-height:48px",onclick:async()=>{
@@ -2160,7 +2160,7 @@ function consultaAnonima(p){
   const c=el("div",{style:"display:flex;flex-direction:column;gap:12px"});
   const area=el("textarea",{rows:9,style:"width:100%;box-sizing:border-box"},texto); const res=el("div",{class:"card",hidden:true,style:"white-space:pre-wrap"}); const aviso=el("div",{class:"note bad",hidden:true});
   c.append(el("div",{class:"note bad"},"Esto es TODO lo que se va a enviar a Google (Gemini). No lleva nombre, DNI, domicilio, teléfono ni fechas exactas: solo la edad, las condiciones de riesgo y a qué edad se aplicó cada vacuna. Podés editarlo antes de enviar."),area);
-  if(!g.key&&!groqConfig().key){ c.append(el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Primero cargá una clave de IA")); abrirOverlay("Consulta sin identificar",c); return; }
+  if(!g.key){ c.append(el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); setTab("datos"); setTimeout(()=>document.querySelector("#gem-card")?.scrollIntoView(),80); }},"Primero cargá una clave de IA")); abrirOverlay("Consulta sin identificar",c); return; }
   const btn=el("button",{class:"btn",style:"min-height:48px",onclick:async()=>{ const m=datosPersonales(area.value); aviso.hidden=!m; if(m){ aviso.textContent="No lo envié: "+m+". Sacalo del texto."; return; }
     btn.disabled=true; btn.textContent="Consultando… (puede tardar hasta 1 minuto y medio)"; cancel.hidden=false; res.hidden=false; res.textContent="Consultando a Gemini…";
     try{ const op={max:1500,web:true}; const a=await preguntarIA("Datos de la persona (sin identificar):\n"+area.value+"\n\nPedido: 1) Según el Calendario Nacional de Argentina y las normas vigentes de Salta, ¿qué vacunas le faltan o están atrasadas y cuáles le corresponden ahora? 2) ¿Hay alguna circular, campaña o alerta vigente (2025-2026) que le aplique y no esté en el manual? 3) Si necesitás un dato más (por ejemplo un intervalo o una fecha) decí cuál. Respondé con una lista corta.",op);
@@ -2185,66 +2185,9 @@ function cardUsuarios(){
     el("p",{class:"small muted"},"Cada celular tiene sus propios PIN. Es un control para uso en equipo, no reemplaza la seguridad del celular."));
 }
 
-/* ===================== IA DE RESPALDO: GROQ (compatible con OpenAI). Mismas reglas: nunca datos de pacientes ===================== */
-const GROQ_KEY="vacunatorio_groq_v1";
-const GROQ_MODELOS=[["llama-3.3-70b-versatile","Llama 3.3 70B (recomendado)"],["llama-3.1-8b-instant","Llama 3.1 8B (más rápido)"],["openai/gpt-oss-120b","GPT OSS 120B"],["openai/gpt-oss-20b","GPT OSS 20B"]];
-const GROQ_NO_CHAT=/whisper|tts|guard|playai|distil|embed|vision-preview|orpheus|allam|compound|safeguard/i;
-function elegirModeloGroq(lista){ const pref=["llama-3.3-70b-versatile","openai/gpt-oss-120b","openai/gpt-oss-20b","llama-3.1-8b-instant"]; for(const m of pref) if(lista.includes(m)) return m; return lista[0]||null; }
-// Trae de Groq los modelos de chat vigentes para esta clave y los guarda en la configuración
-async function listarModelosGroq(key){
-  const r=await fetch("https://api.groq.com/openai/v1/models",{headers:{"Authorization":"Bearer "+key}});
-  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error((j.error&&j.error.message)||("Error "+r.status));
-  const l=(j.data||[]).filter(m=>m.active!==false&&!GROQ_NO_CHAT.test(m.id)).map(m=>m.id).sort();
-  if(!l.length) throw new Error("Groq no devolvió modelos");
-  const n=groqConfig(); n.lista=l; groqGuardar(n); return l; }
-function groqConfig(){ try{ return JSON.parse(localStorage.getItem(GROQ_KEY)||"{}"); }catch(e){ return {}; } }
-function groqGuardar(c){ try{ localStorage.setItem(GROQ_KEY,JSON.stringify(c)); return true; }catch(e){ return false; } }
-async function preguntarGroq(pregunta,op={}){
-  const c=groqConfig(); if(!c.key) throw new Error("Falta la clave de Groq: pegala en Registro → Consulta con IA (Groq).");
-  if(navigator.onLine===false) throw new Error("No hay internet. Probá con el bot sin internet.");
-  let modelo=(op.modelo||c.modeloManual||c.modelo||GROQ_MODELOS[0][0]).trim();
-  const sistema=op.sistema||("Sos un asistente de consultas de vacunación para el equipo de salud de un vacunatorio en Salta, Argentina. Respondé en español rioplatense, corto y claro, para un vacunador. Basate en el Calendario Nacional de Vacunación y el Manual de Vacunación de Salta 2025. Si no estás seguro, o si el tema depende de una circular 2026, decilo y recomendá confirmar en el manual. No tenés acceso a internet: no inventes circulares ni fechas. No des diagnósticos ni indicaciones para un paciente puntual. Calendario de la app, para que lo uses de referencia:\n"+resumenCalendario());
-  const ac=new AbortController(); GEM_AC=ac; const tm=setTimeout(()=>{ ac.timedOut=true; ac.abort(); },window.GEM_TEST_MS||40000);
-  let r; try{ r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",signal:ac.signal,headers:{"Content-Type":"application/json","Authorization":"Bearer "+c.key},body:JSON.stringify({model:modelo,messages:[{role:"system",content:sistema},{role:"user",content:pregunta}],temperature:0.2,max_tokens:op.max||1200})}); }
-  catch(e){ clearTimeout(tm); throw new Error(ac.cancelado?"Cancelaste la consulta.":ac.timedOut?"Groq tardó más de 40 segundos y corté la consulta.":"No pude conectar con Groq. Revisá tu internet y probá de nuevo."); }
-  clearTimeout(tm); const j=await r.json().catch(()=>({}));
-  if(!r.ok){ const m=((j.error&&j.error.message)||("Error "+r.status)).replace(/\s+/g," ");
-    if((r.status===404||(r.status===400&&/model/i.test(m)))&&!op._reintento){
-      // el modelo ya no existe: traigo la lista vigente de Groq y pruebo con uno que sirva
-      try{ const l=await listarModelosGroq(c.key); const n=groqConfig(); const ok=l.includes(modelo)?null:elegirModeloGroq(l);
-        if(ok){ n.modelo=ok; n.modeloManual=""; groqGuardar(n); op._reintento=true; op.modelo=ok; return preguntarGroq(pregunta,op); } }catch(e2){} }
-    throw new Error((r.status===401||r.status===403?"Groq rechazó la clave. Revisala en Registro → Consulta con IA (Groq).":r.status===404||r.status===400&&/model/i.test(m)?"Groq no encontró ese modelo. Elegí otro o escribí el nombre del modelo en Registro.":r.status===429?"Llegaste al límite gratis de Groq por ahora: esperá un momento y probá de nuevo.":r.status>=500?"Groq está con mucha demanda: probá de nuevo en unos minutos.":"Groq dio un error.")+" [Modelo: "+modelo+"] Groq dice: "+m.slice(0,200)); }
-  const txt=(((j.choices||[])[0]||{}).message||{}).content; if(!txt||!String(txt).trim()) throw new Error("Groq no devolvió respuesta. Probá con otra pregunta.");
-  op.aviso=(op.aviso?op.aviso+" ":"")+"Respondió Groq (modelo «"+modelo+"»), sin búsqueda en la web."; return String(txt).trim(); }
-// Prueba Gemini y, si falla (demanda, cupo, tiempo, red), sigue con Groq si hay clave. Si solo hay clave de Groq, usa Groq.
-async function preguntarIA(pregunta,op={}){
-  const g=gemConfig(), q=groqConfig();
-  if(!g.key&&!q.key) throw new Error("Falta la clave: pegala en Registro → Consulta con IA (Gemini o Groq).");
-  if(!g.key) return preguntarGroq(pregunta,op);
-  try{ return await preguntarGemini(pregunta,op); }
-  catch(e){ const msg=(e&&e.message)||""; if(!q.key||/Cancelaste|rechazó la clave|Falta la clave/.test(msg)) throw e;
-    op.aviso=(op.aviso?op.aviso+" ":"")+"Gemini no pudo responder ("+msg.split(" [")[0].slice(0,90)+").";
-    try{ return await preguntarGroq(pregunta,op); }catch(e2){ throw new Error(msg+"\n\nTambién probé con Groq y falló: "+((e2&&e2.message)||"").split(" [")[0]); } } }
-function cardGroq(){
-  const c=groqConfig(); const key=el("input",{type:"password",id:"groq-key",placeholder:c.key?"Clave guardada (pegá otra para cambiarla)":"Pegá acá tu clave de Groq",autocomplete:"off",style:"width:100%;box-sizing:border-box"});
-  const man=el("input",{id:"groq-man",placeholder:"Otro modelo (opcional)",value:c.modeloManual||"",autocomplete:"off",autocapitalize:"off",style:"width:100%;box-sizing:border-box"});
-  const mod=el("select",{id:"groq-mod"});
-  const llenar=(lista,sel)=>{ mod.innerHTML=""; const base=lista&&lista.length?lista.map(k=>[k,(GROQ_MODELOS.find(x=>x[0]===k)||[k,k])[1]]):GROQ_MODELOS; const tiene=base.some(x=>x[0]===sel); (tiene||!sel?base:[[sel,sel+" (guardado)"]].concat(base)).forEach(([k,t])=>mod.append(el("option",{value:k},t))); mod.value=sel&&(tiene||true)?sel:base[0][0]; if(mod.value!==sel&&base.length) mod.value=base[0][0]; };
-  llenar(c.lista,c.modelo||(c.lista?elegirModeloGroq(c.lista):GROQ_MODELOS[0][0]));
-  mod.onchange=()=>{ const n=groqConfig(); n.modelo=mod.value; n.modeloManual=""; man.value=""; groqGuardar(n); toast("Modelo guardado: "+mod.value); };
-  return el("div",{class:"card",id:"groq-card"},el("h3",{},"Consulta con IA (Groq) · respaldo"),
-    el("p",{class:"small muted"},"Segunda opción gratis: si Gemini falla por mucha demanda o cupo, la app prueba con Groq. No busca en la web. Mismas reglas: nunca se envían nombres, DNI ni datos de pacientes. La clave queda solo en este celular (no va en las copias ni en el Excel)."),
-    el("details",{},el("summary",{style:"min-height:48px;display:flex;align-items:center;font-weight:700"},"¿Cómo saco la clave de Groq? (gratis)"),
-      el("ol",{class:"small",style:"padding-left:20px"},el("li",{},"Abrí console.groq.com e ingresá (podés usar tu cuenta de Google)."),el("li",{},"En el menú tocá «API Keys»."),el("li",{},"Tocá «Create API Key», ponele un nombre (por ejemplo Vacunatorio) y tocá Submit."),el("li",{},"Copiá la clave (empieza con gsk_). Se muestra una sola vez."),el("li",{},"Pegala acá abajo y tocá Guardar."),el("li",{},"No se la pases a nadie ni la mandes por WhatsApp."))),
-    el("a",{class:"btn ghost",style:"min-height:48px;display:inline-flex;align-items:center",href:"https://console.groq.com/keys",target:"_blank",rel:"noopener noreferrer"},"Abrir Groq"),
-    key,el("label",{},"Modelo",mod),el("label",{},"Escribir el nombre del modelo a mano",man),
-    el("div",{class:"toolbar"},el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ const n=groqConfig(); if(key.value.trim()) n.key=key.value.trim(); n.modelo=mod.value; n.modeloManual=man.value.trim(); if(groqGuardar(n)){ key.value=""; toast("Guardado en este celular"); render(); } else toast("No se pudo guardar"); }},"Guardar"),
-      c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>{ try{ localStorage.removeItem(GROQ_KEY); }catch(e){} toast("Clave borrada"); render(); }},"Borrar la clave"):null,
-      c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:async()=>{ try{ const n=groqConfig(); if(key.value.trim()) n.key=key.value.trim(); n.modelo=mod.value; n.modeloManual=man.value.trim(); groqGuardar(n);
-        try{ const l=await listarModelosGroq(n.key); const m=(n.modeloManual||n.modelo); if(!l.includes(m)&&!n.modeloManual){ const nuevo=elegirModeloGroq(l); const n2=groqConfig(); n2.modelo=nuevo; groqGuardar(n2); } llenar(l,groqConfig().modelo); }catch(e){}
-        const op={}; const a=await preguntarGroq("Respondé solo: listo",op); toast("Groq anda ("+(groqConfig().modeloManual||groqConfig().modelo)+"): "+a.slice(0,30)); }catch(e){ toast((e.message||"Error").slice(0,160)); } }},"Probar"):null,
-      c.key?el("button",{class:"btn ghost",style:"min-height:48px",onclick:async()=>{ try{ const l=await listarModelosGroq(groqConfig().key); const n=groqConfig(); if(!l.includes(n.modelo)){ n.modelo=elegirModeloGroq(l); groqGuardar(n); } llenar(l,n.modelo); toast("Modelos actualizados: "+l.length); }catch(e){ toast("No pude traer la lista: "+(e.message||"").slice(0,100)); } }},"Actualizar modelos"):null));
-}
+/* Groq se quitó: solo Gemini. Si quedó una clave de Groq guardada en el celular, se borra sola. */
+try{ localStorage.removeItem("vacunatorio_groq_v1"); }catch(e){}
+function preguntarIA(pregunta,op={}){ return preguntarGemini(pregunta,op); }
 
 /* ===================== INICIO: COHORTES Y CAMPAÑAS ===================== */
 // Cohortes del año: nacidos (año - edad). 5 y 11 = esquema del calendario; 6 y 12 = recupero de lo que no se aplicó el año anterior.
@@ -2781,7 +2724,7 @@ function vDatos(v){
     el("input",{type:"file",id:"f-import",accept:".xlsx,.xls,.csv,.txt,.pdf,application/pdf",onchange:e=>{ if(e.target.files[0]) leerArchivo(e.target.files[0]); e.target.value=""; }}),
     el("button",{class:"btn ghost sm",onclick:()=>exportarFilas([{Apellido:"PÉREZ",Nombre:"Juan",DNI:"12345678","Fecha de nacimiento":"15/03/2019",Domicilio:"Calle 1 123",Teléfono:"",Escuela:"Escuela N° 0000",Curso:"1° grado A"}],"modelo_planilla_pacientes")},"Descargar planilla modelo")));
   v.append(el("div",{class:"card"},el("h3",{},"Visitas"),el("p",{class:"small muted"},"El Excel de visitas se sube desde la pestaña Visitas («Subir visitas»).")));
-  v.append(cardGemini()); v.append(cardGroq());
+  v.append(cardGemini());
   v.append(el("div",{class:"card"},el("h3",{},"Entrenar bot"),
     el("p",{class:"small muted"},"El bot responde con el manual 2025 y las reglas del calendario, sin internet y sin enviar datos a ninguna IA externa. Las preguntas que no supo responder se guardan acá para que las revises y se las pases al equipo técnico."),
     el("div",{class:"toolbar"},el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>{ const L=S.ajustes.sinRespuesta||[]; if(!L.length){ toast("Todavía no hay preguntas sin respuesta"); return; } const t=L.map(x=>x.f+" · "+x.q).join("\n"); guardarArchivo("preguntas_sin_respuesta_"+iso(hoy)+".txt",t,"text/plain"); }},"Ver / guardar preguntas sin respuesta ("+(S.ajustes.sinRespuesta||[]).length+")"),
@@ -2885,7 +2828,7 @@ iniciar();
 </script>
 
 <script>
-window.APP_VER="64f6f596a4";
+window.APP_VER="9d9a976ed0";
 // Actualización automática: busca versión nueva al abrir y al volver a la app; si hay, se recarga sola (si no estás cargando algo).
 if("serviceWorker" in navigator){
   let habiaControl=!!navigator.serviceWorker.controller, pendiente=false;
