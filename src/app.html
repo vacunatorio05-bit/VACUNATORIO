@@ -2111,7 +2111,7 @@ function revisionPaciente(p){
       (p.nac&&!r.atrasada.length&&!r.pendiente.length)?el("p",{class:"ok-txt"},"Al día según lo cargado."):null),
     el("div",{class:"card"},el("h3",{},"Datos para completar ("+df.length+")"),df.length?el("ul",{},df.map(x=>el("li",{},x))):el("p",{class:"ok-txt"},"Está todo completo."),
       el("div",{class:"toolbar"},el("button",{class:"btn",style:"min-height:48px",onclick:()=>{ cerrarOverlay(); editarPaciente(p.id); }},"Completar ahora"))));
-  if(p.nac&&false) c.append(el("div",{class:"card"},el("h3",{},"Consultar la web (IA, sin identificar)"),el("p",{class:"small muted"},"Para lo que no está en los manuales (circulares nuevas, brotes, casos especiales). Vas a ver exactamente qué se envía antes de enviarlo."),
+  if(p.nac) c.append(el("div",{class:"card"},el("h3",{},"Consultar la web (IA, sin identificar)"),el("p",{class:"small muted"},"Para lo que no está en los manuales (circulares nuevas, brotes, casos especiales). Vas a ver exactamente qué se envía antes de enviarlo."),
     el("button",{class:"btn ghost",style:"min-height:48px",onclick:()=>consultaAnonima(p)},"✨ Preparar consulta con Gemini")));
   abrirOverlay("Revisar paciente",c);
 }
